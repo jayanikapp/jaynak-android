@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.jaynak.app.core.Boot.activity = this
         enableEdgeToEdge()
         setContent {
             // اتجاه RTL إجباري كما في iOS
