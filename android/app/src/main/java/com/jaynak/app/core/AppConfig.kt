@@ -36,7 +36,8 @@ object AppConfig {
     val demoAdminBypassEnabled: Boolean
         get() = BuildConfig.DEBUG || BuildConfig.DEMO_ACCESS
 
-    const val otpLength = 4
+    const val otpRequired = false
+const val otpLength = 4
     const val otpResendSeconds = 45
 
     const val dispatchFanout = 3
