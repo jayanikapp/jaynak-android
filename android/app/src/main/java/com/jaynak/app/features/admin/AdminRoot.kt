@@ -42,6 +42,8 @@ fun AdminRoot() {
     val entries = buildList {
         add(0 to TabItem("نظرة عامة", "chart.bar.fill"))
         if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
+            add(6 to TabItem("الخريطة", "map.fill"))
+        if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
             add(1 to TabItem("الطلبات", "shippingbox.fill"))
         if (store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers)) {
             add(2 to TabItem("المستخدمون", "person.2.fill"))
@@ -65,6 +67,7 @@ fun AdminRoot() {
         ) { i ->
             when (entries.getOrNull(i)?.first) {
                 0 -> AdminOverview()
+                6 -> AdminLiveMap()
                 1 -> AdminOrders()
                 2 -> AdminUsers()
                 5 -> AdminDeletionRequests()
