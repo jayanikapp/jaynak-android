@@ -584,6 +584,9 @@ class AppStore {
         val did = session?.driverID ?: return
         try {
             val feed = OrdersService.feed()
+            drivers.firstOrNull { it.id == did }?.let {
+                com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, it.presence != DriverPresence.offline)
+            }
             for (remote in feed.offers) merge(remote, did)
             feed.active?.let { merge(it, did) }
             save()
@@ -880,6 +883,12 @@ class AppStore {
         val did = session?.driverID ?: return
         val i = drivers.indexOfFirst { it.id == did }
         if (i < 0) return
+
+        // مشاركة الموقع الحقيقي مع الزبون والإدارة أثناء الاتصال
+        if (p != DriverPresence.offline && !com.jaynak.app.driver.DriverLocationService.hasPermission(Boot.app)) {
+            LocationService.locate()   // يطلب الإذن
+        }
+        com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, p != DriverPresence.offline)
 
         // الخادم يوزّع على المتصلين فقط — لا بد أن يعرف حالتنا.
         if (OrdersService.isAvailable) {
