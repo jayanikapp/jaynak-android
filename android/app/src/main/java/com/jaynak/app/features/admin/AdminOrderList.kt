@@ -42,6 +42,7 @@ private val LIST_BLUE = Color(0xFF0A84FF)
 
 internal fun lastEight(p: String) = p.filter { it.isDigit() }.takeLast(8)
 
+@Composable
 private fun listTint(s: String): Color = when (s) {
     "searching" -> LIST_ORANGE
     "accepted", "assigned", "pickingUp" -> LIST_BLUE
