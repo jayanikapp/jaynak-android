@@ -71,7 +71,14 @@ import java.io.File
 
 /** يفكّ الصورة ويطبّق اتجاه EXIF كما تفعل iOS تلقائياً. */
 internal fun decodeOriented(bytes: ByteArray): Bitmap? {
-    val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    // نفكّ بحجم مصغّر (أطول ضلع ≤ ~2400) كي لا تنفد الذاكرة مع صور الكاميرا الضخمة
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val longest = maxOf(bounds.outWidth, bounds.outHeight)
+    var sample = 1
+    while (longest / sample > 2400) sample *= 2
+    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+    val raw = try { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) } catch (e: OutOfMemoryError) { null } ?: return null
     val orientation = runCatching {
         ExifInterface(ByteArrayInputStream(bytes))
             .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -160,7 +167,7 @@ fun DocumentUploadCard(
                     if (mime == "application/pdf" || mime == "image/png") {
                         add(raw, mime)
                     } else {
-                        val bmp = withContext(Dispatchers.IO) { decodeOriented(raw) }
+                        val bmp = withContext(Dispatchers.IO) { runCatching { decodeOriented(raw) }.getOrNull() }
                         val jpg = bmp?.let { withContext(Dispatchers.IO) { DocumentStore.jpegData(it) } }
                         if (jpg != null) add(jpg, "image/jpeg")
                         else rejection = DocumentRules.Rejection.UnsupportedType("").message
@@ -178,7 +185,7 @@ fun DocumentUploadCard(
         if (ok && f != null) {
             scope.launch {
                 val bytes = withContext(Dispatchers.IO) { runCatching { f.readBytes() }.getOrNull() }
-                val bmp = bytes?.let { withContext(Dispatchers.IO) { decodeOriented(it) } }
+                val bmp = bytes?.let { withContext(Dispatchers.IO) { runCatching { decodeOriented(it) }.getOrNull() } }
                 val jpg = bmp?.let { withContext(Dispatchers.IO) { DocumentStore.jpegData(it) } }
                 if (jpg == null) rejection = DocumentRules.Rejection.Unreadable.message
                 else add(jpg, "image/jpeg")
