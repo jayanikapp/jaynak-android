@@ -86,11 +86,11 @@ class AppStore {
             tickets = s.tickets; chats = s.chats; session = s.session
             admins = s.admins; rewards = s.rewards; vouchers = s.vouchers
             deletionRequests = s.deletionRequests
+            admins = admins.filter { it.phone != AppConfig.demoAdminPhone }
             identities = s.identities
             if (admins.isEmpty()) {
                 admins = listOf(
                     AdminUser(name = "المالك", phone = AppConfig.ownerPhone, role = AdminRole.owner),
-                    AdminUser(name = "حساب المراجعة", phone = AppConfig.demoAdminPhone, role = AdminRole.owner),
                 )
             }
         } else {
@@ -139,9 +139,7 @@ class AppStore {
 
         admins = listOf(
             AdminUser(name = "المالك", phone = AppConfig.ownerPhone, role = AdminRole.owner),
-            // رقم المراجعة منفصل عن رقم المالك عمداً — لا يُستعمل رقم المالك الحقيقي للتجاوز.
-            AdminUser(name = "حساب المراجعة", phone = AppConfig.demoAdminPhone, role = AdminRole.owner),
-        )
+                    )
 
         save()
     }
