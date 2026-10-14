@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -243,7 +244,7 @@ fun MapCanvas(
 @Composable
 private fun NearDot(c: Coord, px: (Coord) -> IntOffset?) {
     Box(
-        Modifier.offset {
+        Modifier.absoluteOffset {
             val o = px(c) ?: return@offset IntOffset(-10000, -10000)
             IntOffset(o.x - 5.dp.roundToPx(), o.y - 5.dp.roundToPx())
         }
@@ -261,7 +262,7 @@ private fun CarAt(c: CarMarker, px: (Coord) -> IntOffset?, onTap: () -> Unit) {
     Box(
         Modifier
             .onSizeChanged { w = it.width; h = it.height }
-            .offset {
+            .absoluteOffset {
                 val o = px(pos) ?: return@offset IntOffset(-10000, -10000)
                 IntOffset(o.x - w / 2, o.y - h / 2)
             }
@@ -284,7 +285,7 @@ private fun PinAt(coord: Coord, px: (Coord) -> IntOffset?, content: @Composable 
     Box(
         Modifier
             .onSizeChanged { w = it.width; h = it.height }
-            .offset {
+            .absoluteOffset {
                 val o = px(coord) ?: return@offset IntOffset(-10000, -10000)
                 IntOffset(o.x - w / 2, o.y - h)
             }
