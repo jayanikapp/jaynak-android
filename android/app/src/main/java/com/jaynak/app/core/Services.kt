@@ -325,7 +325,7 @@ object OrdersService {
     val isAvailable: Boolean
         get() = AppConfig.apiBaseURL != null && AppConfig.sessionToken != null
 
-    private suspend fun send(path: String, method: String, body: JSONObject?): JSONObject {
+    internal suspend fun send(path: String, method: String, body: JSONObject?): JSONObject {
         val base = AppConfig.apiBaseURL ?: throw Failure.NoServer
         val token = AppConfig.sessionToken ?: throw Failure.Unauthorized
 
