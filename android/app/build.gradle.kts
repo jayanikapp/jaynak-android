@@ -15,6 +15,7 @@ android {
         targetSdk = 35
         versionCode = 7
         versionName = "2.2"
+buildConfigField("boolean", "DEMO_ACCESS", "false")
     }
 
     signingConfigs {
@@ -37,7 +38,7 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true ; buildConfig = true }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
