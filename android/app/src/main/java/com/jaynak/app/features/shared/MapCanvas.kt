@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -77,6 +79,15 @@ fun MapCanvas(
     nearby: List<Coord> = emptyList(),
     showRoute: Boolean = true,
     interactive: Boolean = true,
+    driverHeading: Float? = null,
+    routePath: List<Coord>? = null,
+    cars: List<CarMarker> = emptyList(),
+    pins: List<PinMarker> = emptyList(),
+    onCarTap: (String) -> Unit = {},
+    fitPoints: List<Coord>? = null,
+    fitKey: Any? = null,
+    followDriver: Boolean = true,
+    driverStale: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val dark = MB.dark
@@ -85,8 +96,9 @@ fun MapCanvas(
     var tick by remember { mutableIntStateOf(0) }
     var didFit by remember { mutableStateOf(false) }
 
-    val routeCoords: List<Coord> = remember(pickup, dropoff, driver, showRoute) {
-        if (!showRoute || pickup == null || dropoff == null) emptyList()
+    val routeCoords: List<Coord> = remember(pickup, dropoff, driver, showRoute, routePath) {
+        if (showRoute && !routePath.isNullOrEmpty()) routePath
+        else if (!showRoute || pickup == null || dropoff == null) emptyList()
         else if (driver != null) Geo.route(driver, pickup.coord) + Geo.route(pickup.coord, dropoff.coord)
         else Geo.route(pickup.coord, dropoff.coord)
     }
@@ -106,9 +118,9 @@ fun MapCanvas(
     }
 
     // الملاءمة الأولى + عند تغيّر نقطتي الطلب
-    LaunchedEffect(mapRef, pickup?.name, dropoff?.name) {
+    LaunchedEffect(mapRef, pickup?.name, dropoff?.name, fitKey) {
         didFit = false
-        val pts = buildList {
+        val pts = fitPoints?.takeIf { it.isNotEmpty() } ?: buildList {
             pickup?.let { add(it.coord) }; dropoff?.let { add(it.coord) }; driver?.let { add(it) }
         }.ifEmpty { nearby }
         if (mapRef != null && pts.isNotEmpty()) { didFit = true; fitTo(pts, 1.9, true) }
@@ -116,7 +128,7 @@ fun MapCanvas(
     // تتبّع المندوب
     val driverKey = driver?.let { "%.4f,%.4f".format(java.util.Locale.US, it.lat, it.lon) } ?: ""
     LaunchedEffect(driverKey) {
-        if (driver != null && pickup != null && dropoff != null) {
+        if (followDriver && driver != null && pickup != null && dropoff != null) {
             fitTo(listOf(driver, pickup.coord, dropoff.coord), 1.8, true)
         }
     }
@@ -194,8 +206,35 @@ fun MapCanvas(
             dropoff?.let { d ->
                 px(d.coord)?.let { o -> PinAt(o) { MapPin("flag.checkered", MB.red, "تسليم") } }
             }
+            pins.forEach { pn ->
+                px(pn.coord)?.let { o -> PinAt(o) { MapPin(pn.symbol, pn.tint, pn.label) } }
+            }
             driver?.let { dc ->
-                px(dc)?.let { o -> PinAt(o) { DriverPuck() } }
+                CarAt(CarMarker("driver", dc, driverHeading, stale = driverStale), ::px, {})
+            }
+            cars.forEach { c -> key(c.id) { CarAt(c, ::px) { onCarTap(c.id) } } }
+        }
+    }
+}
+
+@Composable
+private fun CarAt(c: CarMarker, px: (Coord) -> IntOffset?, onTap: () -> Unit) {
+    val (pos, rot, _) = rememberSmoothCar(c.coord, c.heading)
+    var w by remember { mutableIntStateOf(0) }
+    var h by remember { mutableIntStateOf(0) }
+    px(pos)?.let { o ->
+        Box(
+            Modifier
+                .onSizeChanged { w = it.width; h = it.height }
+                .offset { IntOffset(o.x - w / 2, o.y - h / 2) }
+                .pointerInput(c.id) { detectTapGestures { onTap() } },
+            contentAlignment = Alignment.Center,
+        ) {
+            LiveCar(rot, tint = c.tint, dim = c.stale, selected = c.selected)
+            c.label?.let {
+                MapOverlayChip(Modifier.offset(y = 44.dp)) {
+                    Text(it, style = MBType.micro, color = Color.White)
+                }
             }
         }
     }
