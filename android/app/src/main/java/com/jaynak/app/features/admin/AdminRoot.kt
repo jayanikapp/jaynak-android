@@ -75,7 +75,7 @@ fun AdminRoot() {
                 0 -> AdminOverview()
                 6 -> AdminLiveMap()
                 1 -> AdminOrders()
-                2 -> AdminUsers()
+                2 -> AdminAccounts()
                 5 -> AdminDeletionRequests()
                 3 -> AdminSettings()
                 4 -> AdminSupport()
