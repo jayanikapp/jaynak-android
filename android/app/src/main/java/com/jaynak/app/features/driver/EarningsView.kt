@@ -157,6 +157,10 @@ fun EarningsView() {
                             withdrawAmount = balance
                             showWithdraw = true
                         })
+                        PrimaryCTA("عبّئ محفظتك", symbol = "plus.circle.fill", tint = MB.gold, onClick = {
+                            settleAmount = maxOf(2.0, Math.ceil(-balance + 1))
+                            showSettle = true
+                        })
                         Text("السحب يُحوّل على حسابك البنكي خلال ٢٤–٤٨ ساعة عمل.", style = MBType.micro, color = MB.ink3)
                     }
                 }
@@ -281,10 +285,15 @@ fun EarningsView() {
                     }
                     KeyValueRow("رصيدك الحالي", balance.money, valueColor = if (balance < 0) MB.red else MB.ink)
                     KeyValueRow("بعد التسديد", (balance + settleAmount).money, valueColor = MB.green, bold = true)
-                    PrimaryCTA("تأكيد التسديد", symbol = "checkmark", onClick = {
-                        store.settleDriverBalance(settleAmount); showSettle = false
+                    val ctxW = androidx.compose.ui.platform.LocalContext.current
+                    PrimaryCTA("إرسال طلب التعبئة للإدارة", symbol = "checkmark", onClick = {
+                        val who = d?.name ?: ""
+                        com.jaynak.app.features.shared.NavigationLauncher.whatsapp(ctxW, com.jaynak.app.core.AppConfig.ownerPhone,
+                            "السلام عليكم، أنا المندوب " + who + " وأريد تعبئة محفظتي بمبلغ " + settleAmount.money +
+                                " (رصيدي الحالي " + balance.money + ")")
+                        showSettle = false
                     })
-                    Text("في النسخة النهائية يمرّ الدفع ببوابة بنكية.", style = MBType.micro, color = MB.ink3,
+                    Text("تُضاف الإدارة المبلغ لمحفظتك بعد استلامه، ويظهر رصيدك تلقائياً.", style = MBType.micro, color = MB.ink3,
                         textAlign = TextAlign.Center)
                     Spacer(Modifier.height(24.dp))
                 }
