@@ -313,6 +313,10 @@ object OrdersService {
         send("api/driver/accept", "POST", JSONObject().put("orderID", orderID))
     }
 
+    suspend fun driverCancel(orderID: String) {
+        send("api/driver/cancel", "POST", JSONObject().put("orderID", orderID))
+    }
+
     suspend fun decline(orderID: String) {
         send("api/driver/decline", "POST", JSONObject().put("orderID", orderID))
     }
