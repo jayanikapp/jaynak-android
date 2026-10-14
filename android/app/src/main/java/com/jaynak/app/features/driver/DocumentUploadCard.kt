@@ -171,9 +171,10 @@ fun DocumentUploadCard(
     }
 
     // الكاميرا: ملف مؤقت عبر FileProvider لنحصل على الدقة الكاملة
-    var cameraFile by remember { mutableStateOf<File?>(null) }
+    // مسار الملف يُحفظ مع حالة الشاشة: على الجوالات الضعيفة يُغلق التطبيق أثناء فتح الكاميرا فتضيع الصورة
+    var cameraPath by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val f = cameraFile
+        val f = cameraPath?.let { File(it) }
         if (ok && f != null) {
             scope.launch {
                 val bytes = withContext(Dispatchers.IO) { runCatching { f.readBytes() }.getOrNull() }
@@ -188,7 +189,7 @@ fun DocumentUploadCard(
     fun launchCamera() {
         val dir = File(context.cacheDir, "camera").apply { mkdirs() }
         val f = File.createTempFile("shot", ".jpg", dir)
-        cameraFile = f
+        cameraPath = f.absolutePath
         val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", f)
         cameraLauncher.launch(uri)
     }
