@@ -1296,7 +1296,8 @@ class AppStore {
         val before = orders[i].status
         val expect = when (before) {
             OrderStatus.assigned, OrderStatus.pickingUp -> "accepted"
-            OrderStatus.delivering -> "pickedUp"
+            OrderStatus.pickedUp -> "pickedUp"
+            OrderStatus.delivering -> "delivering"
             else -> null
         }
         val prevOrder = orders[i]
@@ -1319,7 +1320,7 @@ class AppStore {
         }
         save()
         val remote = orders[i].remoteID
-        if (remote != null && orders[i].status != before && before != OrderStatus.pickedUp && OrdersService.isAvailable) {
+        if (remote != null && orders[i].status != before && OrdersService.isAvailable) {
             val oid = order.id
             advancing.add(oid)
             scope.launch {
