@@ -582,13 +582,101 @@ class AppStore {
         }
     }
 
+    // ───────── مزامنة المستخدمين مع الخادم ─────────
+
+    private var profileKey: String? = null
+
+    /** يسجّل حساب الزبون/المندوب الحالي عند السيرفر (مرة لكل تغيّر). */
+    suspend fun syncProfile() {
+        if (!OrdersService.isAvailable) return
+        val s = session ?: return
+        val tok = AppConfig.sessionToken.hashCode()
+        try {
+            when (s.role) {
+                UserRole.customer -> {
+                    val c = customers.firstOrNull { it.id == s.customerID } ?: return
+                    val key = "c|$tok|${c.phone}|${c.name}"
+                    if (key == profileKey) return
+                    DirectorySync.push("customer", c.name, null, null)
+                    profileKey = key
+                }
+                UserRole.driver -> {
+                    val d = drivers.firstOrNull { it.id == s.driverID } ?: return
+                    val key = "d|$tok|${d.phone}|${d.name}|${d.zone}|${d.docs.civilID}"
+                    if (key == profileKey) return
+                    DirectorySync.push("driver", d.name, d.zone, d.docs.civilID.digitsOnly)
+                    profileKey = key
+                }
+                else -> {}
+            }
+        } catch (e: Exception) {
+            // يُعاد المحاولة في الدورة القادمة
+        }
+    }
+
+    /** المالك: يجلب الزبائن والمندوبين من السيرفر ويدمجهم محلياً. */
+    suspend fun refreshAdminPeople() {
+        if (!OrdersService.isAvailable) return
+        if (session?.role != UserRole.admin) return
+        try {
+            val p = DirectorySync.people()
+            fun same(a: String, b: String) = a.digitsOnly.takeLast(8) == b.digitsOnly.takeLast(8)
+            var cs = customers
+            var ds = drivers
+            for (c in p.customers) {
+                if (cs.none { same(it.phone, c.phone) }) {
+                    cs = cs + Customer(name = c.name, phone = c.phone.digitsOnly.takeLast(8),
+                        createdAt = if (c.createdAt > 0) c.createdAt else nowMs())
+                }
+            }
+            for (r in p.drivers) {
+                val ap = runCatching { DriverApproval.valueOf(r.approval) }.getOrDefault(DriverApproval.pending)
+                val pr = runCatching { DriverPresence.valueOf(r.presence) }.getOrDefault(DriverPresence.offline)
+                if (ds.none { same(it.phone, r.phone) }) {
+                    ds = ds + Driver(
+                        name = r.name, phone = r.phone.digitsOnly.takeLast(8),
+                        zone = if (r.zone.isNotEmpty()) r.zone else Oman.defaultWilaya,
+                        docs = DriverDocuments(civilID = r.civilID),
+                        approval = ap, presence = pr, coord = Geo.cityCenter,
+                        earningsBalance = r.balance, completedOrders = r.completed,
+                        createdAt = if (r.createdAt > 0) r.createdAt else nowMs(),
+                    )
+                } else {
+                    ds = ds.map {
+                        if (same(it.phone, r.phone)) it.copy(approval = ap, presence = pr) else it
+                    }
+                }
+            }
+            if (cs != customers || ds != drivers) {
+                customers = cs
+                drivers = ds
+                save()
+            }
+        } catch (e: Exception) {
+            // ننتظر الدورة التالية
+        }
+    }
+
     // ───────── تغذية المندوب من الخادم ─────────
 
     /** يجلب العروض التي خصّصها الخادم لهذا المندوب ويدمجها في القائمة المحلية. */
     suspend fun refreshDriverFeed() {
         if (!OrdersService.isAvailable) return
         val did = session?.driverID ?: return
+        syncProfile()
         try {
+            // اعتماد الإدارة يصل من السيرفر
+            DirectorySync.myApproval()?.let { a ->
+                val ap = runCatching { DriverApproval.valueOf(a) }.getOrNull()
+                val di = drivers.indexOfFirst { it.id == did }
+                if (ap != null && di >= 0 && drivers[di].approval != ap) {
+                    drivers = drivers.mapAt(di) {
+                        it.copy(approval = ap,
+                            presence = if (ap != DriverApproval.approved) DriverPresence.offline else it.presence)
+                    }
+                    save()
+                }
+            }
             val feed = OrdersService.feed()
             drivers.firstOrNull { it.id == did }?.let {
                 com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, it.presence != DriverPresence.offline)
@@ -1453,6 +1541,15 @@ class AppStore {
         toast = Toast(text = "${drivers[i].name}: ${approval.title}", kind = Toast.Kind.success)
         Feedback.selection()
         save()
+        val ph = drivers[i].phone
+        if (OrdersService.isAvailable) {
+            scope.launch {
+                try { DirectorySync.setDriverState(ph, approval.name, null) }
+                catch (e: Exception) {
+                    toast = Toast(text = "تعذّر تسجيل القرار على السيرفر — " + (e.message ?: ""), kind = Toast.Kind.error)
+                }
+            }
+        }
     }
 
     fun setCommission(fee: Double?, driverID: Id) {
