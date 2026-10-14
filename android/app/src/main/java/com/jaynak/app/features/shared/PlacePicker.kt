@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -289,7 +290,7 @@ private fun MapMode(
                     var w by remember { mutableIntStateOf(0) }
                     var h by remember { mutableIntStateOf(0) }
                     Box(Modifier.onSizeChanged { w = it.width; h = it.height }
-                        .offset { IntOffset(p.x - w / 2, p.y - h) }) { MapPin("mappin", tint, "هنا") }
+                        .absoluteOffset { IntOffset(p.x - w / 2, p.y - h) }) { MapPin("mappin", tint, "هنا") }
                 }
             }
             Box(Modifier.fillMaxSize().padding(14.dp)) {
