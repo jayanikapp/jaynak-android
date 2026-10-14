@@ -68,6 +68,13 @@ private fun SignedIn() {
     var preselectedKind by remember { mutableStateOf(OrderKind.documents) }
     val skippedRatings = remember { mutableStateListOf<Id>() }
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            store.syncProfile()
+            kotlinx.coroutines.delay(15000)
+        }
+    }
+
     val live = store.liveOrderForCurrentCustomer
     val pendingRating: Order? = run {
         val cid = store.session?.customerID ?: return@run null
