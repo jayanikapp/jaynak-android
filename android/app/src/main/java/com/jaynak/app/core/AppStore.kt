@@ -595,6 +595,14 @@ class AppStore {
             }
             for (remote in feed.offers) merge(remote, did)
             feed.active?.let { merge(it, did) }
+            for (remote in feed.board) merge(remote, did, asBoard = true)
+            // طلبات لم تعد في التغذية (استلمها غيره أو أُلغيت) تُزال
+            val live = (feed.offers + feed.board + listOfNotNull(feed.active)).map { it.id }.toSet()
+            val myCustomer = session?.customerID
+            orders = orders.filterNot {
+                it.remoteID != null && it.status == OrderStatus.searching && it.driverID == null &&
+                    it.customerID != myCustomer && it.remoteID !in live
+            }
             save()
         } catch (e: OrdersService.Failure) {
             if (e is OrdersService.Failure.Unauthorized) {
@@ -606,7 +614,7 @@ class AppStore {
     }
 
     /** يحوّل طلب الخادم إلى النموذج المحلي، أو يحدّث نسخته إن كانت موجودة. */
-    private fun merge(remote: OrdersService.RemoteOrder, did: Id) {
+    private fun merge(remote: OrdersService.RemoteOrder, did: Id, asBoard: Boolean = false) {
         val status = runCatching { OrderStatus.valueOf(remote.status) }
             .getOrDefault(OrderStatus.searching)
 
@@ -615,7 +623,7 @@ class AppStore {
             orders = orders.mapAt(existing) {
                 it.copy(
                     status = status,
-                    offeredTo = if (it.offeredTo.contains(did)) it.offeredTo else it.offeredTo + did,
+                    offeredTo = if (asBoard || it.offeredTo.contains(did)) it.offeredTo else it.offeredTo + did,
                 )
             }
             return
@@ -647,6 +655,7 @@ class AppStore {
             offeredAt = mapOf(did to nowMs()),
         )
         if (remote.createdAt > 0) order = order.copy(createdAt = (remote.createdAt * 1000).toLong())
+        if (asBoard) order = order.copy(dispatchMode = DispatchMode.open, offeredTo = emptyList(), offeredAt = emptyMap())
         orders = listOf(order) + orders
     }
 
