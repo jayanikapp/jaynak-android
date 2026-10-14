@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -113,6 +116,7 @@ fun AdminLiveMap() {
     var query by remember { mutableStateOf("") }
     var track by remember { mutableStateOf<LiveTracking.Track?>(null) }
     var copied by remember { mutableStateOf(false) }
+    var showList by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -201,6 +205,11 @@ fun AdminLiveMap() {
                     Text(if (remote != null) "مباشر · ${fleet.orders.size} طلب" else "محلي · ${fleet.orders.size} طلب",
                         style = MBType.ar(12, FontWeight.SemiBold), color = MB.ink)
                 }
+                Row(Modifier.glassChip().clickableNoRipple { showList = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SFIcon("list.bullet.rectangle", size = 12.dp, tint = MB.ink)
+                    Text("القائمة", style = MBType.ar(12, FontWeight.SemiBold), color = MB.ink)
+                }
                 if (sel != null) Row(Modifier.glassChip().clickableNoRipple { selectedId = null; query = "" }
                     .padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -221,13 +230,12 @@ fun AdminLiveMap() {
                     },
                     onClose = { selectedId = null; query = ""; copied = false })
             } else if (rows.isNotEmpty()) {
-                LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(rows, key = { it.id }) { r -> MiniCard(r) { selectedId = r.id; copied = false } }
-                }
+                ProminentButton("قائمة الطلبات (" + rows.size + ")", { showList = true },
+                    Modifier.padding(horizontal = 14.dp).fillMaxWidth(), symbol = "list.bullet.rectangle", vertical = 13.dp)
             }
         }
     }
+    if (showList) OrderListSheet(rows, { id -> selectedId = id; copied = false; showList = false }, { showList = false })
 }
 
 @Composable
@@ -254,7 +262,8 @@ private fun DetailCard(
     val ctx = LocalContext.current
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp)
-            .glassSurface(26.dp, null, 0.30f, underlay = Color.Black.copy(alpha = 0.45f)).padding(16.dp),
+            .glassSurface(26.dp, null, 0.30f, underlay = Color.Black.copy(alpha = 0.45f))
+            .heightIn(max = 460.dp).verticalScroll(rememberScrollState()).padding(16.dp),
         horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -282,14 +291,11 @@ private fun DetailCard(
 
         Text("من: ${r.pickup.name}  ←  إلى: ${r.dropoff.name}", style = MBType.micro, color = MB.ink2)
 
+        if (r.customerPhone.isNotEmpty()) ContactRow("الزبون", null, r.customerPhone, MB.green)
+        if (r.recipientPhone.isNotEmpty() && lastEight(r.recipientPhone) != lastEight(r.customerPhone))
+            ContactRow("المستلم", null, r.recipientPhone, MB.green)
+        r.driver?.takeIf { it.phone.isNotEmpty() }?.let { d -> ContactRow("المندوب", d.name, d.phone, BLUE) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (r.customerPhone.isNotEmpty())
-                ProminentButton("الزبون", { NavigationLauncher.call(ctx, last8(r.customerPhone)) },
-                    Modifier.weight(1f), symbol = "phone.fill", vertical = 10.dp)
-            r.driver?.takeIf { it.phone.isNotEmpty() }?.let { d ->
-                GlassButton("المندوب", { NavigationLauncher.call(ctx, last8(d.phone)) },
-                    Modifier.weight(1f), tint = MB.green, symbol = "phone.fill", vertical = 10.dp)
-            }
             GlassButton(if (copied) "تم النسخ" else "نسخ", onCopy, Modifier.weight(1f),
                 symbol = "doc.on.doc.fill", vertical = 10.dp)
         }
