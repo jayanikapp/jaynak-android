@@ -19,7 +19,7 @@ object MapTiles {
 
     fun apply(map: MapView, dark: Boolean) {
         if (map.tileProvider.tileSource.name() != street.name()) map.setTileSource(street)
-        map.overlayManager.tilesOverlay.setColorFilter(if (dark) TilesOverlay.INVERT_COLORS else null)
+        map.overlayManager.tilesOverlay.setColorFilter(null)
         map.isTilesScaledToDpi = true
     }
 }
