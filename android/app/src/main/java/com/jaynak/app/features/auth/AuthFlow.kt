@@ -436,8 +436,8 @@ fun PhoneEntryView(
                         val st = MBType.num(26, FontWeight.SemiBold).copy(color = MB.ink, textAlign = TextAlign.End)
                         if (grouped.isEmpty()) Text("9XXX XXXX", style = st.copy(color = MB.ink3), maxLines = 1)
                         BasicTextField(
-                            value = grouped,
-                            onValueChange = { digits = it.digitsOnly.take(AppConfig.nationalNumberLength) },
+                            value = androidx.compose.ui.text.input.TextFieldValue(grouped, androidx.compose.ui.text.TextRange(grouped.length)),
+                            onValueChange = { digits = it.text.digitsOnly.take(AppConfig.nationalNumberLength) },
                             singleLine = true, textStyle = st, cursorBrush = SolidColor(tint),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                             modifier = Modifier.fillMaxWidth().focusRequester(focus)
