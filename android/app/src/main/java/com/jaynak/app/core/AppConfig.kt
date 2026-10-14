@@ -34,7 +34,7 @@ object AppConfig {
 
     /** DEBUG أو DEMO_ACCESS فقط — مقابل #if DEBUG / DEMO_ACCESS. */
     val demoAdminBypassEnabled: Boolean
-        get() = BuildConfig.DEBUG || BuildConfig.DEMO_ACCESS
+        get() = false
 
     const val otpRequired = false
 const val otpLength = 4
