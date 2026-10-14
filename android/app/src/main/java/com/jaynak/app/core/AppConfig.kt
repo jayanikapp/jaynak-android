@@ -58,6 +58,9 @@ const val otpLength = 6
         get() = store.token
         set(v) { store.token = v?.takeIf { it.isNotEmpty() } }
 
+    /** آخر سبب لفشل ربط الحساب بالسيرفر (للعرض للمستخدم). */
+    @Volatile var lastAuthError: String? = null
+
     /** العنوان لم يعد يُضبط من داخل التطبيق — نفس سلوك iOS. */
     val apiBaseURLString: String get() = builtInAPIBase
 
