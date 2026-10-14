@@ -322,8 +322,10 @@ object OrdersService {
     }
 
     /** ينقل الطلب للحالة التالية: pickedUp ← accepted، delivered ← pickedUp. */
-    suspend fun advance(orderID: String) {
-        send("api/driver/advance", "POST", JSONObject().put("orderID", orderID))
+    suspend fun advance(orderID: String, expect: String? = null) {
+        val b = JSONObject().put("orderID", orderID)
+        if (expect != null) b.put("expect", expect)
+        send("api/driver/advance", "POST", b)
     }
 
     // ───────── النقل ─────────
