@@ -686,6 +686,20 @@ class AppStore {
             for (remote in feed.board) merge(remote, did, asBoard = true)
             // طلبات لم تعد في التغذية (استلمها غيره أو أُلغيت) تُزال
             val live = (feed.offers + feed.board + listOfNotNull(feed.active)).map { it.id }.toSet()
+            val activeId = feed.active?.id
+            var released = false
+            orders = orders.map {
+                if (it.driverID == did && it.remoteID != null && it.status.isLive && it.remoteID != activeId &&
+                    nowMs() - (it.acceptedAt ?: 0L) > 20000) {
+                    released = true
+                    it.copy(status = OrderStatus.cancelled, cancelledReason = "أُلغي")
+                } else it
+            }
+            if (released) {
+                val di2 = drivers.indexOfFirst { it.id == did }
+                if (di2 >= 0 && drivers[di2].presence == DriverPresence.busy)
+                    drivers = drivers.mapAt(di2) { it.copy(presence = DriverPresence.online) }
+            }
             val myCustomer = session?.customerID
             orders = orders.filterNot {
                 it.remoteID != null && it.status == OrderStatus.searching && it.driverID == null &&
@@ -701,16 +715,61 @@ class AppStore {
         }
     }
 
+    /** حالات الخادم (accepted…) إلى حالات التطبيق. */
+    private fun serverStatus(s: String): OrderStatus = when (s) {
+        "accepted" -> OrderStatus.pickingUp
+        else -> runCatching { OrderStatus.valueOf(s) }.getOrDefault(OrderStatus.searching)
+    }
+
+    /** الزبون: يجلب حالة طلباته من السيرفر (قبول، استلام، تسليم، إلغاء). */
+    suspend fun refreshMyOrders() {
+        if (!OrdersService.isAvailable) return
+        val cid = session?.customerID ?: return
+        try {
+            val mine = OrdersService.mine()
+            var changed = false
+            for (r in mine) {
+                val i = orders.indexOfFirst { it.remoteID == r.id && it.customerID == cid }
+                if (i < 0) continue
+                val cur = orders[i]
+                val st = serverStatus(r.status)
+                val newStatus = when {
+                    st == cur.status -> cur.status
+                    // حالات التوصيل المحلية الدقيقة لا تُرجَع للخلف
+                    st == OrderStatus.pickedUp && cur.status == OrderStatus.delivering -> cur.status
+                    st == OrderStatus.pickingUp && cur.status == OrderStatus.assigned -> cur.status
+                    !cur.status.isLive -> cur.status
+                    else -> st
+                }
+                val newDriver = if (st == OrderStatus.searching || st == OrderStatus.cancelled) null else (r.driverID ?: cur.driverID)
+                if (newStatus != cur.status || newDriver != cur.driverID) {
+                    orders = orders.mapAt(i) {
+                        it.copy(
+                            status = newStatus, driverID = newDriver,
+                            acceptedAt = if (newStatus == OrderStatus.pickingUp && it.acceptedAt == null) nowMs() else it.acceptedAt,
+                            deliveredAt = if (newStatus == OrderStatus.delivered) (it.deliveredAt ?: nowMs()) else it.deliveredAt,
+                            cancelledReason = if (newStatus == OrderStatus.cancelled && it.cancelledReason == null) "أُلغي" else it.cancelledReason,
+                        )
+                    }
+                    changed = true
+                }
+            }
+            if (changed) save()
+        } catch (e: Exception) {
+            // الدورة القادمة
+        }
+    }
+
     /** يحوّل طلب الخادم إلى النموذج المحلي، أو يحدّث نسخته إن كانت موجودة. */
     private fun merge(remote: OrdersService.RemoteOrder, did: Id, asBoard: Boolean = false) {
-        val status = runCatching { OrderStatus.valueOf(remote.status) }
-            .getOrDefault(OrderStatus.searching)
+        val status = serverStatus(remote.status)
 
         val existing = orders.indexOfFirst { it.remoteID == remote.id }
         if (existing >= 0) {
             orders = orders.mapAt(existing) {
                 it.copy(
                     status = status,
+                    driverID = if (remote.driverID != null && status.isLive) did else it.driverID,
                     offeredTo = if (asBoard || it.offeredTo.contains(did)) it.offeredTo else it.offeredTo + did,
                 )
             }
@@ -744,6 +803,7 @@ class AppStore {
         )
         if (remote.createdAt > 0) order = order.copy(createdAt = (remote.createdAt * 1000).toLong())
         if (asBoard) order = order.copy(dispatchMode = DispatchMode.open, offeredTo = emptyList(), offeredAt = emptyMap())
+        if (remote.driverID != null && status.isLive) order = order.copy(driverID = did, acceptedAt = nowMs())
         orders = listOf(order) + orders
     }
 
@@ -778,6 +838,22 @@ class AppStore {
         toast = Toast(text = "أُلغي الطلب ${orders[i].ref}", kind = Toast.Kind.error)
         Feedback.warning()
         save()
+
+        val remote = orders[i].remoteID
+        if (remote != null && by != UserRole.admin && OrdersService.isAvailable) {
+            val oid = order.id
+            val prev = order.status
+            scope.launch {
+                try {
+                    if (by == UserRole.driver) OrdersService.driverCancel(remote) else OrdersService.cancel(remote)
+                } catch (e: Exception) {
+                    val j = orders.indexOfFirst { it.id == oid }
+                    if (j >= 0) orders = orders.mapAt(j) { it.copy(status = prev, cancelledReason = null) }
+                    toast = Toast(text = e.message ?: "تعذّر إلغاء الطلب", kind = Toast.Kind.error)
+                    save()
+                }
+            }
+        }
     }
 
     fun rate(order: Order, stars: Int, comment: String, by: UserRole) {
@@ -1062,8 +1138,33 @@ class AppStore {
         }
         val i = drivers.indexOfFirst { it.id == did }
         if (i >= 0) drivers = drivers.mapAt(i) { it.copy(offersReceived = it.offersReceived + 1) }
-        assign(orders[oi], did, manual = true)
+        val ord = orders[oi]
+        assign(ord, did, manual = true)
+        confirmAcceptOnServer(ord)
         return true
+    }
+
+    /** يثبّت القبول عند السيرفر؛ إن رفضه (سبقه غيره) يُعاد الطلب كما كان. */
+    private fun confirmAcceptOnServer(order: Order) {
+        val remote = order.remoteID ?: return
+        if (!OrdersService.isAvailable) return
+        val did = session?.driverID
+        scope.launch {
+            try {
+                OrdersService.accept(remote)
+            } catch (e: Exception) {
+                val i = orders.indexOfFirst { it.id == order.id }
+                if (i >= 0) orders = orders.mapAt(i) {
+                    it.copy(status = OrderStatus.searching, driverID = null, acceptedAt = null)
+                }
+                if (did != null) {
+                    val di = drivers.indexOfFirst { it.id == did }
+                    if (di >= 0) drivers = drivers.mapAt(di) { it.copy(presence = DriverPresence.online) }
+                }
+                toast = Toast(text = "تعذّر تثبيت الطلب — " + (e.message ?: ""), kind = Toast.Kind.error)
+                save()
+            }
+        }
     }
 
     fun setAcceptRadius(km: Double) {
@@ -1163,6 +1264,8 @@ class AppStore {
     fun advance(order: Order) {
         val i = orders.indexOfFirst { it.id == order.id }
         if (i < 0) return
+        val before = orders[i].status
+        val prevOrder = orders[i]
         when (orders[i].status) {
             OrderStatus.assigned, OrderStatus.pickingUp -> {
                 orders = orders.mapAt(i) { it.copy(status = OrderStatus.pickedUp) }
@@ -1175,6 +1278,20 @@ class AppStore {
             else -> {}
         }
         save()
+        val remote = orders[i].remoteID
+        if (remote != null && orders[i].status != before && OrdersService.isAvailable) {
+            val oid = order.id
+            scope.launch {
+                try {
+                    OrdersService.advance(remote)
+                } catch (e: Exception) {
+                    val j = orders.indexOfFirst { it.id == oid }
+                    if (j >= 0) orders = orders.mapAt(j) { it.copy(status = before) }
+                    toast = Toast(text = "تعذّر تحديث الحالة على السيرفر — " + (e.message ?: ""), kind = Toast.Kind.error)
+                    save()
+                }
+            }
+        }
     }
 
     private fun complete(i: Int) {
