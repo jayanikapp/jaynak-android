@@ -45,12 +45,14 @@ internal object FirebasePhone {
 
     private fun map(e: Throwable): OTPService.Failure = when (e) {
         is OTPService.Failure -> e
-        is FirebaseTooManyRequestsException ->
-            OTPService.Failure.RateLimited("محاولات كثيرة، حاول لاحقاً")
+        is FirebaseTooManyRequestsException -> {
+            SendLock.lock()
+            OTPService.Failure.RateLimited("محاولات كثيرة — يُفتح الإرسال بعد ${SendLock.format(SendLock.remainingSec())}")
+        }
         is FirebaseAuthInvalidCredentialsException ->
             if (e.errorCode == "ERROR_SESSION_EXPIRED") OTPService.Failure.Expired
             else if (e.errorCode == "ERROR_INVALID_PHONE_NUMBER") OTPService.Failure.InvalidPhone
-            else OTPService.Failure.WrongCode(null)
+            else { SendLock.onWrongCode(); OTPService.Failure.WrongCode(null) }
         is FirebaseException ->
             OTPService.Failure.SendFailed(e.message ?: "تعذّر إرسال الرمز")
         else -> OTPService.Failure.Unreachable(e.message ?: "تعذّر الاتصال")
@@ -58,6 +60,7 @@ internal object FirebasePhone {
 
     /** يرسل الرمز ويعيد verificationId. */
     suspend fun send(phone: String): String = try {
+        SendLock.beforeSend()
         suspendCancellableCoroutine<String> { cont ->
             val act = Boot.activity
             if (act == null) {
@@ -104,6 +107,7 @@ internal object FirebasePhone {
         val token = user.getIdToken(true).await().token
             ?: throw OTPService.Failure.Unreachable("تعذّر إكمال التحقق")
         auth.signOut()
+        SendLock.clear()
         token
     } catch (e: Throwable) {
         throw map(e)
