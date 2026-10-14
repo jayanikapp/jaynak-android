@@ -187,7 +187,7 @@ fun MapCanvas(
                     context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                 Configuration.getInstance().userAgentValue = "jaynak-android"
                 MapView(context).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
+                    MapTiles.apply(this, dark)
                     setMultiTouchControls(interactive)
                     zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                     minZoomLevel = 4.0
@@ -202,9 +202,7 @@ fun MapCanvas(
                 }
             },
             update = { map ->
-                // وضع داكن: عكس ألوان البلاط
-                map.overlayManager.tilesOverlay.setColorFilter(
-                    if (dark) TilesOverlay.INVERT_COLORS else null)
+                MapTiles.apply(map, dark)
                 map.overlays.removeAll { it is Polyline }
                 if (routeCoords.isNotEmpty()) {
                     val geo = routeCoords.map { GeoPoint(it.lat, it.lon) }
@@ -354,9 +352,21 @@ object NavigationLauncher {
     }
 
     fun call(context: Context, phone: String) {
+        val local = phone.filter { it.isDigit() }.takeLast(8)
         runCatching {
             context.startActivity(
-                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${AppConfig.countryDialCode}$phone"))
+                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${AppConfig.countryDialCode}$local"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
+    /** يفتح محادثة واتساب مع الرقم مباشرة. */
+    fun whatsapp(context: Context, phone: String) {
+        val local = phone.filter { it.isDigit() }.takeLast(8)
+        val full = AppConfig.countryDialCode.filter { it.isDigit() } + local
+        runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$full"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
