@@ -245,7 +245,7 @@ fun MapCanvas(
 private fun NearDot(c: Coord, px: (Coord) -> IntOffset?) {
     Box(
         Modifier.absoluteOffset {
-            val o = px(c) ?: return@offset IntOffset(-10000, -10000)
+            val o = px(c) ?: return@absoluteOffset IntOffset(-10000, -10000)
             IntOffset(o.x - 5.dp.roundToPx(), o.y - 5.dp.roundToPx())
         }
             .size(10.dp)
@@ -263,7 +263,7 @@ private fun CarAt(c: CarMarker, px: (Coord) -> IntOffset?, onTap: () -> Unit) {
         Modifier
             .onSizeChanged { w = it.width; h = it.height }
             .absoluteOffset {
-                val o = px(pos) ?: return@offset IntOffset(-10000, -10000)
+                val o = px(pos) ?: return@absoluteOffset IntOffset(-10000, -10000)
                 IntOffset(o.x - w / 2, o.y - h / 2)
             }
             .pointerInput(c.id) { detectTapGestures { onTap() } },
@@ -286,7 +286,7 @@ private fun PinAt(coord: Coord, px: (Coord) -> IntOffset?, content: @Composable 
         Modifier
             .onSizeChanged { w = it.width; h = it.height }
             .absoluteOffset {
-                val o = px(coord) ?: return@offset IntOffset(-10000, -10000)
+                val o = px(coord) ?: return@absoluteOffset IntOffset(-10000, -10000)
                 IntOffset(o.x - w / 2, o.y - h)
             }
     ) { content() }
