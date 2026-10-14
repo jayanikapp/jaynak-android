@@ -10,6 +10,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
@@ -29,6 +31,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * يرسل موقع المندوب الحقيقي للسيرفر كل ~4 ثوانٍ طالما هو «متصل»
@@ -40,6 +44,8 @@ class DriverLocationService : Service() {
     private var last: Coord? = null
     private var lastHeading = 0f
     private var lastSentAt = 0L
+    private var seen = setOf<String>()
+    private var offersJob: kotlinx.coroutines.Job? = null
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(r: LocationResult) {
@@ -68,6 +74,14 @@ class DriverLocationService : Service() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
                 NotificationChannel(CH, "مشاركة الموقع", NotificationManager.IMPORTANCE_LOW)
                     .apply { description = "يظهر أثناء اتصالك لتتبّع الطلبات" })
+            getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(CH_ORDERS, "طلبات جديدة", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "ينبّهك فور وصول طلب جديد"
+                    enableVibration(true)
+                    setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                })
         }
     }
 
@@ -81,7 +95,49 @@ class DriverLocationService : Service() {
             .build()
         LocationServices.getFusedLocationProviderClient(this)
             .requestLocationUpdates(req, callback, Looper.getMainLooper())
+        if (offersJob?.isActive != true) offersJob = scope.launch { pollOffers() }
         return START_STICKY
+    }
+
+    /** إشعار فوري لكل طلب جديد؛ ويُسحب الإشعار عندما يقبله مندوب آخر. */
+    private suspend fun pollOffers() {
+        val nm = getSystemService(NotificationManager::class.java)
+        var first = true
+        while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+            try {
+                if (OrdersService.isAvailable) {
+                    val feed = OrdersService.feed()
+                    val all = (feed.offers + feed.board).filter { it.status == "searching" }
+                    val ids = all.map { it.id }.toSet()
+                    for (o in all) {
+                        if (o.id in seen) continue
+                        val open = PendingIntent.getActivity(
+                            this, 0, Intent(this, MainActivity::class.java),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                        val body = "${o.pickup.name} ← ${o.dropoff.name}" + (o.km?.let { " · %.1f كم".format(java.util.Locale.US, it) } ?: "")
+                        val n = NotificationCompat.Builder(this, CH_ORDERS)
+                            .setContentTitle("طلب جديد · %.3f ر.ع. لك".format(java.util.Locale.US, o.price.driverPayout))
+                            .setContentText(body)
+                            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                            .setSmallIcon(android.R.drawable.ic_dialog_map)
+                            .setPriority(NotificationCompat.PRIORITY_HIGH)
+                            .setCategory(NotificationCompat.CATEGORY_CALL)
+                            .setAutoCancel(true)
+                            .setContentIntent(open)
+                            .build()
+                        runCatching { nm.notify(o.id.hashCode(), n) }
+                    }
+                    // طلب اختفى (قَبِله غيرك أو أُلغي): نسحب إشعاره
+                    for (gone in seen - ids) nm.cancel(gone.hashCode())
+                    seen = ids
+                    first = false
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+            }
+            delay(4000)
+        }
     }
 
     override fun onDestroy() {
@@ -103,6 +159,7 @@ class DriverLocationService : Service() {
 
     companion object {
         private const val CH = "jaynak.location"
+        private const val CH_ORDERS = "jaynak.orders"
         private const val ID = 1002
 
         @Volatile private var running = false
