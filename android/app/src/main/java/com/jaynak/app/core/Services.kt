@@ -123,7 +123,10 @@ object OTPService {
                 try {
                     post("auth/firebase", base, JSONObject().put("id_token", idToken)).str("token")
                         ?.let { AppConfig.sessionToken = it }
-                } catch (_: Exception) { /* الدخول المحلي يكفي إن لم يدعم الخادم Firebase بعد */ }
+                    AppConfig.lastAuthError = null
+                } catch (e: Exception) {
+                    AppConfig.lastAuthError = e.message ?: e.javaClass.simpleName
+                }
             }
             return true
         }
