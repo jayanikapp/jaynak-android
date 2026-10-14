@@ -549,7 +549,13 @@ class AppStore {
 
     /** يرسل الطلب للخادم ويحفظ معرّفه البعيد عند النجاح. */
     private fun publishToServer(order: Order) {
-        if (!OrdersService.isAvailable) return
+        if (!OrdersService.isAvailable) {
+            toast = Toast(
+                text = "الطلب لم يُرسل للسيرفر — حسابك غير مربوط به (" +
+                    (AppConfig.lastAuthError ?: "لا جلسة") + "). سجّل خروج ثم دخول",
+                kind = Toast.Kind.error)
+            return
+        }
         val id = order.id
         scope.launch {
             try {
@@ -893,7 +899,15 @@ class AppStore {
         // الخادم يوزّع على المتصلين فقط — لا بد أن يعرف حالتنا.
         if (OrdersService.isAvailable) {
             val online = p != DriverPresence.offline
-            scope.launch { runCatching { OrdersService.setPresence(online) } }
+            scope.launch {
+                try { OrdersService.setPresence(online) }
+                catch (e: Exception) {
+                    toast = Toast(text = "تعذّر إبلاغ السيرفر باتصالك — " + (e.message ?: ""), kind = Toast.Kind.error)
+                }
+            }
+        } else if (p != DriverPresence.offline) {
+            toast = Toast(text = "حسابك غير مربوط بالسيرفر (" + (AppConfig.lastAuthError ?: "لا جلسة") +
+                ") — لن تصلك طلبات. سجّل خروج ثم دخول", kind = Toast.Kind.error)
         }
 
         if (p != DriverPresence.offline && drivers[i].earningsBalance < rules.minEarningsBalance) {
