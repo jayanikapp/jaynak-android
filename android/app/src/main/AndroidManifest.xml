@@ -48,6 +48,10 @@
                 android:resource="@xml/file_paths"/>
         </provider>
         <service
+            android:name=".driver.DriverLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location"/>
+        <service
             android:name=".driver.OfferService"
             android:exported="false"
             android:foregroundServiceType="location"/>
