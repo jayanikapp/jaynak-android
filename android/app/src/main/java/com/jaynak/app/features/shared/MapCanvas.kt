@@ -131,6 +131,10 @@ fun MapCanvas(
         pins.forEach { add(MapPinOverlay.Pin(it.coord.lat, it.coord.lon, it.symbol, it.tint.toArgb(), it.label)) }
     }
     val overlayDots: List<MapPinOverlay.Dot> = nearby.map { MapPinOverlay.Dot(it.lat, it.lon) }
+    val overlayCars: List<MapCarOverlay.Car> = buildList {
+        driver?.let { dc -> add(MapCarOverlay.Car("driver", dc.lat, dc.lon, driverHeading, 0xFFE5303B.toInt(), null, false, driverStale)) }
+        cars.forEach { add(MapCarOverlay.Car(it.id, it.coord.lat, it.coord.lon, it.heading, it.tint.toArgb(), it.label, it.selected, it.stale)) }
+    }
 
     fun fitTo(pts: List<Coord>, factor: Double, animate: Boolean) {
         val map = mapRef ?: return
@@ -221,6 +225,12 @@ fun MapCanvas(
                 }
                 map.overlays.removeAll { it is MapPinOverlay }
                 map.overlays.add(MapPinOverlay(density.density).also { it.pins = overlayPins; it.dots = overlayDots })
+                val carOv = (map.overlays.firstOrNull { it is MapCarOverlay } as? MapCarOverlay)
+                    ?: MapCarOverlay(density.density)
+                map.overlays.remove(carOv)
+                carOv.onTap = onCarTap
+                carOv.setCars(overlayCars)
+                map.overlays.add(carOv)
                 map.invalidate()
             },
         )
@@ -229,21 +239,6 @@ fun MapCanvas(
 
         DisposableEffect(Unit) {
             onDispose { mapRef?.onDetach(); mapRef = null }
-        }
-
-        // دبابيس Compose فوق الخريطة؛ مواضعها تُحسب في مرحلة التخطيط كل إطار فتلتصق بالخريطة
-        val map = mapRef
-        if (map != null) {
-            fun px(c: Coord): IntOffset? {
-                if (frame + tick < 0) return null   // قراءة حالة: تعيد التخطيط عند كل تغيّر
-                val proj = map.projection ?: return null
-                val p = proj.toPixels(GeoPoint(c.lat, c.lon), null)
-                return IntOffset(p.x, p.y)
-            }
-            driver?.let { dc ->
-                CarAt(CarMarker("driver", dc, driverHeading, stale = driverStale), ::px, {})
-            }
-            cars.forEach { c -> key(c.id) { CarAt(c, ::px) { onCarTap(c.id) } } }
         }
     }
 }
