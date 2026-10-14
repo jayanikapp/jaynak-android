@@ -53,6 +53,7 @@ import com.jaynak.app.design.pressable
 
 private val orange = Color(0xFFFF9500)
 
+@Composable
 private fun ticketTint(s: TicketStatus) = when (s) {
     TicketStatus.open -> MB.red
     TicketStatus.pending -> orange
