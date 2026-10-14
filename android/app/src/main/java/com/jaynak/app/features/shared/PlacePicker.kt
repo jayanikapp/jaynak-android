@@ -89,9 +89,21 @@ fun PlacePicker(
     var droppedCoord by remember { mutableStateOf(Geo.cityCenter) }
     var droppedName by remember { mutableStateOf("") }
 
+    var remote by remember { mutableStateOf<List<Place>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    LaunchedEffect(query) {
+        remote = emptyList()
+        if (query.trim().length < 3) { searching = false; return@LaunchedEffect }
+        searching = true
+        kotlinx.coroutines.delay(450)
+        remote = com.jaynak.app.core.PlaceSearch.search(query.trim())
+        searching = false
+    }
+
     val results: List<Place> = run {
         val all = saved + Geo.places.filter { p -> saved.none { it.name == p.name } }
-        if (query.isEmpty()) all else all.filter { it.name.contains(query) || it.zone.contains(query) }
+        val local = if (query.isEmpty()) all else all.filter { it.name.contains(query) || it.zone.contains(query) }
+        local + remote
     }
 
     JSheet(onDismiss = onDismiss) {
@@ -139,6 +151,9 @@ fun PlacePicker(
                             }
                         }
 
+                        if (searching) {
+                            Text("نبحث عن العنوان…", style = MBType.caption, color = MB.ink2)
+                        }
                         results.forEach { p ->
                             Row(
                                 Modifier.fillMaxWidth()
@@ -156,7 +171,7 @@ fun PlacePicker(
                                     verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(p.name, style = MBType.headline, color = MB.ink)
                                     Text(if (p.details.isEmpty()) p.zone else "${p.zone} · ${p.details}",
-                                        style = MBType.caption, color = MB.ink2)
+                                        style = MBType.caption, color = MB.ink2, maxLines = 2)
                                 }
                             }
                         }
@@ -243,13 +258,26 @@ private fun MapMode(
     val dark = MB.dark
     var mapRef by remember { mutableStateOf<MapView?>(null) }
     var tick by remember { mutableIntStateOf(0) }
+    var edited by remember { mutableStateOf(false) }
+    var resolving by remember { mutableStateOf(false) }
+    var pinH by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(loc.current) {
         val new = loc.current ?: return@LaunchedEffect
-        onDropped(new)
-        if (droppedName.isEmpty()) onName(loc.resolvedName ?: "")
-        mapRef?.let { m ->
-            m.controller.animateTo(GeoPoint(new.lat, new.lon), 16.0, 600L)
+        mapRef?.controller?.animateTo(GeoPoint(new.lat, new.lon), 17.0, 600L)
+    }
+
+    // بعد توقّف الخريطة: مركزها هو النقطة المختارة + اسم العنوان تلقائياً (دبوس ثابت في المنتصف)
+    LaunchedEffect(tick, mapRef) {
+        val m = mapRef ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(450)
+        val c = m.mapCenter
+        val coord = Coord(c.latitude, c.longitude)
+        onDropped(coord)
+        if (!edited) {
+            resolving = true
+            com.jaynak.app.core.PlaceSearch.reverse(coord)?.let { if (!edited) onName(it) }
+            resolving = false
         }
     }
 
@@ -261,50 +289,41 @@ private fun MapMode(
                     Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                     Configuration.getInstance().userAgentValue = "jaynak-android"
                     MapView(context).apply {
-                        setTileSource(TileSourceFactory.MAPNIK)
+                        MapTiles.apply(this, dark)
                         setMultiTouchControls(true)
                         zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
-                        controller.setZoom(11.0)
-                        controller.setCenter(GeoPoint(Geo.cityCenter.lat, Geo.cityCenter.lon))
-                        overlays.add(MapEventsOverlay(object : MapEventsReceiver {
-                            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                                Feedback.impact(ImpactStyle.light)
-                                onDropped(Coord(p.latitude, p.longitude)); return true
-                            }
-                            override fun longPressHelper(p: GeoPoint): Boolean = false
-                        }))
+                        val start = loc.current ?: dropped
+                        controller.setZoom(if (loc.current != null) 17.0 else 12.0)
+                        controller.setCenter(GeoPoint(start.lat, start.lon))
                         addMapListener(object : MapListener {
                             override fun onScroll(event: ScrollEvent?): Boolean { tick++; return false }
                             override fun onZoom(event: ZoomEvent?): Boolean { tick++; return false }
                         })
-                        addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> tick++ }
                         mapRef = this
                     }
                 },
-                update = { it.overlayManager.tilesOverlay.setColorFilter(if (dark) TilesOverlay.INVERT_COLORS else null) },
+                update = { MapTiles.apply(it, dark) },
             )
-            val map = mapRef
-            if (map != null && tick >= 0) {
-                val p = map.projection?.toPixels(GeoPoint(dropped.lat, dropped.lon), null)
-                if (p != null) {
-                    var w by remember { mutableIntStateOf(0) }
-                    var h by remember { mutableIntStateOf(0) }
-                    Box(Modifier.onSizeChanged { w = it.width; h = it.height }
-                        .absoluteOffset { IntOffset(p.x - w / 2, p.y - h) }) { MapPin("mappin", tint, "هنا") }
+            // الدبوس ثابت في منتصف الشاشة؛ الخريطة هي التي تتحرك تحته
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.onSizeChanged { pinH = it.height }.offset { IntOffset(0, -pinH / 2) }) {
+                    MapPin("mappin", tint, "هنا")
                 }
             }
             Box(Modifier.fillMaxSize().padding(14.dp)) {
                 GlassIconButton("location.fill", { loc.locate() }, tint = tint, prominent = true,
                     modifier = Modifier.align(Alignment.TopStart))
-                Text("انقر على الخريطة لتحديد النقطة", style = MBType.micro, color = MB.ink,
+                Text(if (resolving) "نحدّد العنوان…" else "حرّك الخريطة ليستقر الدبوس على المكان بدقة",
+                    style = MBType.micro, color = MB.ink,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 0.dp)
                         .glassChip().padding(horizontal = 12.dp, vertical = 7.dp))
             }
         }
 
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MBField("وصف المكان", droppedName, onName, placeholder = "مثال: منزل ١٢، شارع ٣", symbol = "text.alignright")
-            KeyValueRow("الإحداثيات", "%.4f, %.4f".format(java.util.Locale.US, dropped.lat, dropped.lon))
+            MBField("وصف المكان", droppedName, { edited = it.isNotEmpty(); onName(it) },
+                placeholder = "مثال: منزل ١٢، شارع ٣", symbol = "text.alignright")
+            KeyValueRow("الإحداثيات", "%.5f, %.5f".format(java.util.Locale.US, dropped.lat, dropped.lon))
             KeyValueRow("الولاية", Geo.nearestZone(dropped), isNumber = false)
             PrimaryCTA("تثبيت هذه النقطة", symbol = "mappin.and.ellipse", tint = tint,
                 enabled = droppedName.isNotEmpty(),
