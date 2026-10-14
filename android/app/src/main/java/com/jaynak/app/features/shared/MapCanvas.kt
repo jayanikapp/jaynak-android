@@ -26,6 +26,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -47,6 +49,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.jaynak.app.core.Coord
 import com.jaynak.app.core.Geo
 import com.jaynak.app.core.Place
+import com.jaynak.app.core.RoadRouter
 import com.jaynak.app.core.AppConfig
 import com.jaynak.app.design.MB
 import com.jaynak.app.design.MBType
@@ -94,14 +97,29 @@ fun MapCanvas(
     val density = LocalDensity.current
     var mapRef by remember { mutableStateOf<MapView?>(null) }
     var tick by remember { mutableIntStateOf(0) }
+    var frame by remember { mutableLongStateOf(0L) }
     var didFit by remember { mutableStateOf(false) }
 
-    val routeCoords: List<Coord> = remember(pickup, dropoff, driver, showRoute, routePath) {
-        if (showRoute && !routePath.isNullOrEmpty()) routePath
-        else if (!showRoute || pickup == null || dropoff == null) emptyList()
+    val syntheticRoute: List<Coord> = remember(pickup, dropoff, driver, showRoute) {
+        if (!showRoute || pickup == null || dropoff == null) emptyList()
         else if (driver != null) Geo.route(driver, pickup.coord) + Geo.route(pickup.coord, dropoff.coord)
         else Geo.route(pickup.coord, dropoff.coord)
     }
+    // مسار حقيقي على الشوارع (OSRM) يحلّ محل التقريبي عند وصوله
+    val roadKey = "%.3f,%.3f|%.4f,%.4f|%.4f,%.4f".format(java.util.Locale.US,
+        driver?.lat ?: 0.0, driver?.lon ?: 0.0, pickup?.coord?.lat ?: 0.0, pickup?.coord?.lon ?: 0.0,
+        dropoff?.coord?.lat ?: 0.0, dropoff?.coord?.lon ?: 0.0)
+    var road by remember { mutableStateOf<List<Coord>?>(null) }
+    LaunchedEffect(roadKey, showRoute, routePath) {
+        if (!showRoute || !routePath.isNullOrEmpty() || pickup == null || dropoff == null) {
+            road = null; return@LaunchedEffect
+        }
+        RoadRouter.route(listOfNotNull(driver, pickup.coord, dropoff.coord))?.let { road = it }
+    }
+    val routeCoords: List<Coord> =
+        if (showRoute && !routePath.isNullOrEmpty()) routePath
+        else if (!showRoute) emptyList()
+        else road ?: syntheticRoute
     val green = MB.green
 
     fun fitTo(pts: List<Coord>, factor: Double, animate: Boolean) {
@@ -115,6 +133,20 @@ fun MapCanvas(
         val spanLon = max(0.012, (lons.max() - lons.min()) * factor)
         val box = BoundingBox(cLat + spanLat / 2, cLon + spanLon / 2, cLat - spanLat / 2, cLon - spanLon / 2)
         map.post { map.zoomToBoundingBox(box, animate) ; tick++ }
+    }
+
+    // مزامنة الدبابيس مع الخريطة كل إطار أثناء السحب والتكبير
+    LaunchedEffect(mapRef) {
+        val m = mapRef ?: return@LaunchedEffect
+        var lat = 0.0; var lon = 0.0; var z = 0.0; var sx = 0; var sy = 0
+        while (true) {
+            withFrameNanos { }
+            val c = m.mapCenter
+            if (c.latitude != lat || c.longitude != lon || m.zoomLevelDouble != z || m.scrollX != sx || m.scrollY != sy) {
+                lat = c.latitude; lon = c.longitude; z = m.zoomLevelDouble; sx = m.scrollX; sy = m.scrollY
+                frame++
+            }
+        }
     }
 
     // الملاءمة الأولى + عند تغيّر نقطتي الطلب
@@ -161,16 +193,21 @@ fun MapCanvas(
                     if (dark) TilesOverlay.INVERT_COLORS else null)
                 map.overlays.removeAll { it is Polyline }
                 if (routeCoords.isNotEmpty()) {
-                    val line = Polyline(map).apply {
-                        setPoints(routeCoords.map { GeoPoint(it.lat, it.lon) })
-                        outlinePaint.color = android.graphics.Color.argb(
-                            217, (green.red * 255).roundToInt(), (green.green * 255).roundToInt(),
-                            (green.blue * 255).roundToInt())
-                        outlinePaint.strokeWidth = 5f * density.density
-                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
-                        outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                    val geo = routeCoords.map { GeoPoint(it.lat, it.lon) }
+                    // حدّ داكن ثم خط ملوّن فوقه: يظهر المسار واضحاً على أي خلفية
+                    listOf(9f to android.graphics.Color.argb(120, 0, 0, 0),
+                        5.5f to android.graphics.Color.argb(240, (green.red * 255).roundToInt(),
+                            (green.green * 255).roundToInt(), (green.blue * 255).roundToInt())
+                    ).forEach { (w, col) ->
+                        map.overlays.add(Polyline(map).apply {
+                            setPoints(geo)
+                            outlinePaint.color = col
+                            outlinePaint.strokeWidth = w * density.density
+                            outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                            outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                            outlinePaint.isAntiAlias = true
+                        })
                     }
-                    map.overlays.add(line)
                 }
                 map.invalidate()
             },
@@ -182,33 +219,19 @@ fun MapCanvas(
             onDispose { mapRef?.onDetach(); mapRef = null }
         }
 
-        // دبابيس Compose فوق الخريطة (المرساة: أسفل الوسط كما في Annotation)
+        // دبابيس Compose فوق الخريطة؛ مواضعها تُحسب في مرحلة التخطيط كل إطار فتلتصق بالخريطة
         val map = mapRef
-        if (map != null && tick >= 0) {
+        if (map != null) {
             fun px(c: Coord): IntOffset? {
+                if (frame + tick < 0) return null   // قراءة حالة: تعيد التخطيط عند كل تغيّر
                 val proj = map.projection ?: return null
                 val p = proj.toPixels(GeoPoint(c.lat, c.lon), null)
                 return IntOffset(p.x, p.y)
             }
-            nearby.forEach { c ->
-                px(c)?.let { o ->
-                    Box(
-                        Modifier.offset { IntOffset(o.x - 5.dp.roundToPx(), o.y - 5.dp.roundToPx()) }
-                            .size(10.dp)
-                            .background(MB.green.copy(alpha = 0.5f), CircleShape)
-                            .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
-                    )
-                }
-            }
-            pickup?.let { p ->
-                px(p.coord)?.let { o -> PinAt(o) { MapPin("arrow.up.circle.fill", MB.green, "استلام") } }
-            }
-            dropoff?.let { d ->
-                px(d.coord)?.let { o -> PinAt(o) { MapPin("flag.checkered", MB.red, "تسليم") } }
-            }
-            pins.forEach { pn ->
-                px(pn.coord)?.let { o -> PinAt(o) { MapPin(pn.symbol, pn.tint, pn.label) } }
-            }
+            nearby.forEach { c -> NearDot(c, ::px) }
+            pickup?.let { p -> PinAt(p.coord, ::px) { MapPin("arrow.up.circle.fill", MB.green, "استلام") } }
+            dropoff?.let { d -> PinAt(d.coord, ::px) { MapPin("flag.checkered", MB.red, "تسليم") } }
+            pins.forEach { pn -> PinAt(pn.coord, ::px) { MapPin(pn.symbol, pn.tint, pn.label) } }
             driver?.let { dc ->
                 CarAt(CarMarker("driver", dc, driverHeading, stale = driverStale), ::px, {})
             }
@@ -218,36 +241,53 @@ fun MapCanvas(
 }
 
 @Composable
+private fun NearDot(c: Coord, px: (Coord) -> IntOffset?) {
+    Box(
+        Modifier.offset {
+            val o = px(c) ?: return@offset IntOffset(-10000, -10000)
+            IntOffset(o.x - 5.dp.roundToPx(), o.y - 5.dp.roundToPx())
+        }
+            .size(10.dp)
+            .background(MB.green.copy(alpha = 0.5f), CircleShape)
+            .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+    )
+}
+
+@Composable
 private fun CarAt(c: CarMarker, px: (Coord) -> IntOffset?, onTap: () -> Unit) {
     val (pos, rot, _) = rememberSmoothCar(c.coord, c.heading)
     var w by remember { mutableIntStateOf(0) }
     var h by remember { mutableIntStateOf(0) }
-    px(pos)?.let { o ->
-        Box(
-            Modifier
-                .onSizeChanged { w = it.width; h = it.height }
-                .offset { IntOffset(o.x - w / 2, o.y - h / 2) }
-                .pointerInput(c.id) { detectTapGestures { onTap() } },
-            contentAlignment = Alignment.Center,
-        ) {
-            LiveCar(rot, tint = c.tint, dim = c.stale, selected = c.selected)
-            c.label?.let {
-                MapOverlayChip(Modifier.offset(y = 44.dp)) {
-                    Text(it, style = MBType.micro, color = Color.White)
-                }
+    Box(
+        Modifier
+            .onSizeChanged { w = it.width; h = it.height }
+            .offset {
+                val o = px(pos) ?: return@offset IntOffset(-10000, -10000)
+                IntOffset(o.x - w / 2, o.y - h / 2)
+            }
+            .pointerInput(c.id) { detectTapGestures { onTap() } },
+        contentAlignment = Alignment.Center,
+    ) {
+        LiveCar(rot, tint = c.tint, dim = c.stale, selected = c.selected)
+        c.label?.let {
+            MapOverlayChip(Modifier.offset(y = 44.dp)) {
+                Text(it, style = MBType.micro, color = Color.White)
             }
         }
     }
 }
 
 @Composable
-private fun PinAt(o: IntOffset, content: @Composable () -> Unit) {
+private fun PinAt(coord: Coord, px: (Coord) -> IntOffset?, content: @Composable () -> Unit) {
     var w by remember { mutableIntStateOf(0) }
     var h by remember { mutableIntStateOf(0) }
     Box(
         Modifier
             .onSizeChanged { w = it.width; h = it.height }
-            .offset { IntOffset(o.x - w / 2, o.y - h) }
+            .offset {
+                val o = px(coord) ?: return@offset IntOffset(-10000, -10000)
+                IntOffset(o.x - w / 2, o.y - h)
+            }
     ) { content() }
 }
 
