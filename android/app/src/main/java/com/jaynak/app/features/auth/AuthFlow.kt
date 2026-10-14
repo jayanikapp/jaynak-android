@@ -373,6 +373,10 @@ fun PhoneEntryView(
     val needsName = role == UserRole.driver && mode == AuthMode.signUp
     val valid = complete && agreed && (!needsName || name.length >= 3)
 
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); tick++ } }
+    val lockLeft = remember(tick) { com.jaynak.app.core.SendLock.remainingSec() }
+
     LaunchedEffect(Unit) { delay(450); runCatching { focus.requestFocus() } }
     LaunchedEffect(complete) { if (complete) Feedback.selection() }
 
@@ -380,8 +384,9 @@ fun PhoneEntryView(
         onBack = onBack,
         bottomBar = {
             PrimaryCTA(
-                title = if (sending) "جاري الإرسال…" else "إرسال الرمز",
-                symbol = "paperplane.fill", tint = tint, enabled = valid, loading = sending,
+                title = if (lockLeft > 0) "مقفل — ${com.jaynak.app.core.SendLock.format(lockLeft)}"
+                    else if (sending) "جاري الإرسال…" else "إرسال الرمز",
+                symbol = "paperplane.fill", tint = tint, enabled = valid && lockLeft == 0, loading = sending,
                 onClick = {
                     sending = true
                     scope.launch {
@@ -488,6 +493,11 @@ fun PhoneEntryView(
                     Text("اقرأها قبل الموافقة", style = MBType.micro, color = tint,
                         modifier = Modifier.clickable { showLegal = true })
                 }
+            }
+
+            if (lockLeft > 0) {
+                Text("تم إيقاف الإرسال مؤقتاً لكثرة المحاولات — يُفتح تلقائياً بعد ${com.jaynak.app.core.SendLock.format(lockLeft)}",
+                    style = MBType.caption, color = MB.red, modifier = Modifier.padding(horizontal = 20.dp))
             }
 
             store.authError?.let { err ->
