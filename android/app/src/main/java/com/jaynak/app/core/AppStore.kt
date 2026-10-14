@@ -570,7 +570,17 @@ class AppStore {
                 )
                 val i = orders.indexOfFirst { it.id == id }
                 if (i >= 0) {
-                    orders = orders.mapAt(i) { it.copy(remoteID = remote.id) }
+                    // السعر المعتمد هو سعر الإدارة (السيرفر) — يوحَّد عند الزبون والمندوب
+                    val rp = remote.price
+                    orders = orders.mapAt(i) {
+                        it.copy(remoteID = remote.id,
+                            price = if (rp.total > 0.0) it.price.copy(
+                                total = rp.total, km = rp.km, minutes = rp.minutes,
+                                base = rp.base, distance = rp.distance, time = rp.time,
+                                commission = rp.commission, driverPayout = rp.driverPayout,
+                                zoneSurcharge = 0.0, kindAdjustment = 0.0, surge = 0.0, discount = 0.0)
+                            else it.price)
+                    }
                     save()
                 }
             } catch (e: Exception) {
@@ -1274,7 +1284,7 @@ class AppStore {
         val before = orders[i].status
         val expect = when (before) {
             OrderStatus.assigned, OrderStatus.pickingUp -> "accepted"
-            OrderStatus.pickedUp, OrderStatus.delivering -> "pickedUp"
+            OrderStatus.delivering -> "pickedUp"
             else -> null
         }
         val prevOrder = orders[i]
@@ -1286,12 +1296,18 @@ class AppStore {
                 Feedback.success()
                 toast = Toast(text = "تم الاستلام — توجّه للتسليم", kind = Toast.Kind.success)
             }
-            OrderStatus.pickedUp, OrderStatus.delivering -> complete(i)
+            OrderStatus.pickedUp -> {
+                // «توصيل»: يبدأ التوصيل فقط — لا ينتهي الطلب إلا عند «تسليم»
+                orders = orders.mapAt(i) { it.copy(status = OrderStatus.delivering) }
+                Feedback.success()
+                toast = Toast(text = "في الطريق للعميل — اضغط تسليم عند التسليم", kind = Toast.Kind.success)
+            }
+            OrderStatus.delivering -> complete(i)
             else -> {}
         }
         save()
         val remote = orders[i].remoteID
-        if (remote != null && orders[i].status != before && OrdersService.isAvailable) {
+        if (remote != null && orders[i].status != before && before != OrderStatus.pickedUp && OrdersService.isAvailable) {
             val oid = order.id
             advancing.add(oid)
             scope.launch {
