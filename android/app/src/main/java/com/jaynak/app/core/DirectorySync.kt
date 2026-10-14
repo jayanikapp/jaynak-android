@@ -43,6 +43,12 @@ object DirectorySync {
         OrdersService.send("api/admin/driver-state", "POST", b)
     }
 
+    /** بيانات المندوب الحقيقية من السيرفر (الرصيد والتوصيلات). */
+    suspend fun myDriver(): JSONObject? {
+        val j = OrdersService.send("api/me", "GET", null)
+        return j.optJSONObject("driver")
+    }
+
     /** حالة اعتماد المندوب كما يراها السيرفر (null إن لم يُسجَّل بعد). */
     suspend fun myApproval(): String? {
         val j = OrdersService.send("api/me", "GET", null)
