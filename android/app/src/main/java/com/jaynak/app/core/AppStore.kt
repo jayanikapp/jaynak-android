@@ -767,8 +767,17 @@ class AppStore {
         val existing = orders.indexOfFirst { it.remoteID == remote.id }
         if (existing >= 0) {
             orders = orders.mapAt(existing) {
+                fun rank(s: OrderStatus) = when (s) {
+                    OrderStatus.searching -> 0
+                    OrderStatus.assigned, OrderStatus.pickingUp -> 1
+                    OrderStatus.pickedUp -> 2
+                    OrderStatus.delivering -> 3
+                    else -> 9
+                }
+                // السيرفر قد يتأخر لحظة عن ضغطة المندوب — لا نُرجع الحالة للخلف أبداً
+                val keepLocal = it.status.isLive && status.isLive && it.driverID == did && rank(it.status) > rank(status)
                 it.copy(
-                    status = status,
+                    status = if (keepLocal) it.status else status,
                     driverID = if (remote.driverID != null && status.isLive) did else it.driverID,
                     offeredTo = if (asBoard || it.offeredTo.contains(did)) it.offeredTo else it.offeredTo + did,
                 )
@@ -1046,9 +1055,14 @@ class AppStore {
     val pendingOfferForCurrentDriver: Order?
         get() {
             val did = session?.driverID ?: return null
+            val me = drivers.firstOrNull { it.id == did }
+            val online = me?.presence == DriverPresence.online
+            val myCustomer = session?.customerID
             return orders.firstOrNull {
-                it.status == OrderStatus.searching && it.offeredTo.contains(did) &&
-                    !it.declinedBy.contains(did)
+                it.status == OrderStatus.searching && !it.declinedBy.contains(did) && (
+                    it.offeredTo.contains(did) ||
+                        // كل طلب حقيقي مفتوح يظهر للمندوب المتصل فوراً (قبول/رفض)
+                        (online && it.remoteID != null && it.driverID == null && it.customerID != myCustomer))
             }
         }
 
@@ -1196,17 +1210,7 @@ class AppStore {
         assign(order, did, manual = true)
 
         // طلب جاء من الخادم — نُعلمه بالقبول وإلا بقي معروضاً للبقية.
-        val remote = order.remoteID
-        if (remote != null && OrdersService.isAvailable) {
-            scope.launch {
-                try {
-                    OrdersService.accept(remote)
-                } catch (e: Exception) {
-                    toast = Toast(text = "تعذّر تثبيت الطلب على السيرفر — " + (e.message ?: ""),
-                        kind = Toast.Kind.error)
-                }
-            }
-        }
+        confirmAcceptOnServer(order)
     }
 
     fun declineOffer(order: Order) {
@@ -1261,10 +1265,18 @@ class AppStore {
         save()
     }
 
+    private val advancing = mutableSetOf<String>()
+
     fun advance(order: Order) {
         val i = orders.indexOfFirst { it.id == order.id }
         if (i < 0) return
+        if (advancing.contains(order.id)) return      // ضغطة مزدوجة أثناء الإرسال
         val before = orders[i].status
+        val expect = when (before) {
+            OrderStatus.assigned, OrderStatus.pickingUp -> "accepted"
+            OrderStatus.pickedUp, OrderStatus.delivering -> "pickedUp"
+            else -> null
+        }
         val prevOrder = orders[i]
         when (orders[i].status) {
             OrderStatus.assigned, OrderStatus.pickingUp -> {
@@ -1281,14 +1293,17 @@ class AppStore {
         val remote = orders[i].remoteID
         if (remote != null && orders[i].status != before && OrdersService.isAvailable) {
             val oid = order.id
+            advancing.add(oid)
             scope.launch {
                 try {
-                    OrdersService.advance(remote)
+                    OrdersService.advance(remote, expect)
                 } catch (e: Exception) {
                     val j = orders.indexOfFirst { it.id == oid }
                     if (j >= 0) orders = orders.mapAt(j) { it.copy(status = before) }
                     toast = Toast(text = "تعذّر تحديث الحالة على السيرفر — " + (e.message ?: ""), kind = Toast.Kind.error)
                     save()
+                } finally {
+                    advancing.remove(oid)
                 }
             }
         }
