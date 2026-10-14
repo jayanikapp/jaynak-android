@@ -71,6 +71,9 @@ object OTPService {
 
         /** رمز مولَّد محلياً (DEBUG بلا خادم). */
         val localCode: String? = null,
+
+        /** معرّف تحقّق Firebase. */
+        val verificationId: String? = null,
     ) {
         val expired: Boolean get() = (nowMs() - sentAt) / 1000.0 > expiresIn
         val isRemote: Boolean get() = localCode == null
@@ -89,6 +92,10 @@ object OTPService {
     }
 
     suspend fun send(phone: String): Challenge {
+        if (AppConfig.firebaseEnabled) {
+            val id = FirebasePhone.send(phone)
+            return Challenge(phone = phone, sentAt = nowMs(), expiresIn = 120.0, channel = "SMS", localCode = null, verificationId = id)
+        }
         val base = AppConfig.apiBaseURL
         if (base == null) {
             // بلا خادم: في بناء DEBUG نولّد رمزاً محلياً، وفي الإنتاج خطأ صريح.
@@ -108,6 +115,18 @@ object OTPService {
     }
 
     suspend fun verify(code: String, challenge: Challenge): Boolean {
+        val vid = challenge.verificationId
+        if (AppConfig.firebaseEnabled && vid != null) {
+            val idToken = FirebasePhone.verify(code.digitsOnly, vid)
+            val base = AppConfig.apiBaseURL
+            if (base != null) {
+                try {
+                    post("auth/firebase", base, JSONObject().put("id_token", idToken)).str("token")
+                        ?.let { AppConfig.sessionToken = it }
+                } catch (_: Exception) { /* الدخول المحلي يكفي إن لم يدعم الخادم Firebase بعد */ }
+            }
+            return true
+        }
         if (BuildConfig.DEBUG) {
             val local = challenge.localCode
             if (local != null) {
