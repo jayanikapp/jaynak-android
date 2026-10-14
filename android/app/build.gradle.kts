@@ -67,6 +67,8 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-auth")
     // alpha بقصد: 1.0.0 المستقرّة تسقط على بعض الأجهزة عند دوران
     // المفتاح، و1.1.0-alpha06 هي ما تعتمده جوجل عملياً منذ سنوات.
     // تُراجَع عند صدور مستقرّة. تخزّن رمز الجلسة وحده.
