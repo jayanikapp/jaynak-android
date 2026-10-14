@@ -55,6 +55,12 @@ fun AdminRoot() {
         if (store.can(AdminPermission.manageSupport))
             add(4 to TabItem("الدعم", "lifepreserver.fill"))
     }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            store.refreshAdminPeople()
+            kotlinx.coroutines.delay(8000)
+        }
+    }
     var selectedValue by remember { mutableStateOf(0) }
     val index = entries.indexOfFirst { it.first == selectedValue }.coerceAtLeast(0)
 
