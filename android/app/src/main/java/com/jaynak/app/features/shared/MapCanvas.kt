@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -122,6 +123,14 @@ fun MapCanvas(
         else if (!showRoute) emptyList()
         else road ?: syntheticRoute
     val green = MB.green
+    val greenArgb = MB.green.toArgb()
+    val redArgb = MB.red.toArgb()
+    val overlayPins: List<MapPinOverlay.Pin> = buildList {
+        pickup?.let { add(MapPinOverlay.Pin(it.coord.lat, it.coord.lon, "arrow.up.circle.fill", greenArgb, "استلام")) }
+        dropoff?.let { add(MapPinOverlay.Pin(it.coord.lat, it.coord.lon, "flag.checkered", redArgb, "تسليم")) }
+        pins.forEach { add(MapPinOverlay.Pin(it.coord.lat, it.coord.lon, it.symbol, it.tint.toArgb(), it.label)) }
+    }
+    val overlayDots: List<MapPinOverlay.Dot> = nearby.map { MapPinOverlay.Dot(it.lat, it.lon) }
 
     fun fitTo(pts: List<Coord>, factor: Double, animate: Boolean) {
         val map = mapRef ?: return
@@ -210,6 +219,8 @@ fun MapCanvas(
                         })
                     }
                 }
+                map.overlays.removeAll { it is MapPinOverlay }
+                map.overlays.add(MapPinOverlay(density.density).also { it.pins = overlayPins; it.dots = overlayDots })
                 map.invalidate()
             },
         )
@@ -229,10 +240,6 @@ fun MapCanvas(
                 val p = proj.toPixels(GeoPoint(c.lat, c.lon), null)
                 return IntOffset(p.x, p.y)
             }
-            nearby.forEach { c -> NearDot(c, ::px) }
-            pickup?.let { p -> PinAt(p.coord, ::px) { MapPin("arrow.up.circle.fill", MB.green, "استلام") } }
-            dropoff?.let { d -> PinAt(d.coord, ::px) { MapPin("flag.checkered", MB.red, "تسليم") } }
-            pins.forEach { pn -> PinAt(pn.coord, ::px) { MapPin(pn.symbol, pn.tint, pn.label) } }
             driver?.let { dc ->
                 CarAt(CarMarker("driver", dc, driverHeading, stale = driverStale), ::px, {})
             }
