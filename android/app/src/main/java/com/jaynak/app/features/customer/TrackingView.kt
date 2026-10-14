@@ -110,6 +110,15 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
         }
     }
     val liveLoc = live?.loc
+    // بيانات المندوب الحقيقية من السيرفر (اسم + رقم) حتى لو لم يكن في قائمة هذا الجهاز
+    val driverShown: Driver? = when {
+        driver != null -> driver.copy(
+            name = live?.driverName?.takeIf { it.isNotBlank() } ?: driver.name,
+            phone = live?.driverPhone?.takeIf { it.isNotBlank() } ?: driver.phone)
+        !live?.driverName.isNullOrBlank() ->
+            Driver(name = live!!.driverName!!, phone = live?.driverPhone ?: "", coord = Coord(0.0, 0.0))
+        else -> null
+    }
     val carCoord: Coord? = liveLoc?.coord ?: order?.driverCoord
     val targetCoord: Coord? = order?.let {
         if (live?.target == "dropoff" || it.status == OrderStatus.pickedUp || it.status == OrderStatus.delivering) it.dropoff.coord
@@ -188,7 +197,7 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
                             sheetOffset.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 300f))
                         },
                     )
-            ) { Panel(order, driver, distanceKm, etaMin, liveLoc?.stale == true, onChat = { showChat = true }, onCancel = { showCancel = true }) }
+            ) { Panel(order, driverShown, distanceKm, etaMin, liveLoc?.stale == true, onChat = { showChat = true }, onCancel = { showCancel = true }) }
         } else {
             BrandBackground()
             OrderClosedView(onClose)
@@ -276,15 +285,19 @@ private fun DriverBlock(d: Driver, onChat: () -> Unit) {
             Avatar(d.name, size = 46.dp, tint = MB.red)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(d.name, style = MBType.headline, color = MB.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (d.phone.isNotBlank()) Text("+968 " + d.phone.filter { it.isDigit() }.takeLast(8),
+                    style = MBType.num(13, FontWeight.SemiBold), color = MB.green)
                 StarRating(d.rating, count = d.ratingCount, size = 10.dp)
                 Text(vehicleLine(d), style = MBType.micro, color = MB.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ProminentButton("اتصال", { NavigationLauncher.call(ctx, d.phone) }, Modifier.weight(1f),
                 symbol = "phone.fill", vertical = 11.dp)
-            GlassButton("محادثة", onChat, Modifier.weight(1f), tint = MB.green,
+            GlassButton("واتساب", { NavigationLauncher.whatsapp(ctx, d.phone) }, Modifier.weight(1f), tint = MB.green,
                 symbol = "message.fill", vertical = 11.dp)
+            GlassButton("محادثة", onChat, Modifier.weight(1f), tint = MB.ink,
+                symbol = "bubble.left.fill", vertical = 11.dp)
         }
     }
 }
