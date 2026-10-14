@@ -433,7 +433,7 @@ fun PhoneEntryView(
                     }
                     Box(Modifier.width(1.dp).height(28.dp).background(MB.hairline))
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                        val st = MBType.num(26, FontWeight.SemiBold).copy(color = MB.ink, textAlign = TextAlign.End)
+                        val st = MBType.num(26, FontWeight.SemiBold).copy(color = MB.ink, textAlign = TextAlign.End, textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                         if (grouped.isEmpty()) Text("9XXX XXXX", style = st.copy(color = MB.ink3), maxLines = 1)
                         BasicTextField(
                             value = androidx.compose.ui.text.input.TextFieldValue(grouped, androidx.compose.ui.text.TextRange(grouped.length)),
