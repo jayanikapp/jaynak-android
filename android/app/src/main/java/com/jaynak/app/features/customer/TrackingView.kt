@@ -40,7 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.jaynak.app.core.Coord
 import com.jaynak.app.core.Driver
+import com.jaynak.app.core.Geo
+import com.jaynak.app.core.LiveTracking
+import com.jaynak.app.core.OrdersService
 import com.jaynak.app.core.Feedback
 import com.jaynak.app.core.ImpactStyle
 import com.jaynak.app.core.Order
@@ -92,6 +96,33 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
     val order = store.orders.firstOrNull { it.id == orderID }
     val driver: Driver? = order?.driverID?.let { did -> store.drivers.firstOrNull { it.id == did } }
 
+    // تتبّع حيّ من السيرفر: موقع المندوب الحقيقي + المسار + المسافة
+    var live by remember { mutableStateOf<LiveTracking.Track?>(null) }
+    val remoteID = order?.remoteID
+    val isLive = order?.status?.isLive == true
+    LaunchedEffect(remoteID, isLive) {
+        if (remoteID == null || !isLive) return@LaunchedEffect
+        while (true) {
+            if (OrdersService.isAvailable) {
+                runCatching { LiveTracking.track(remoteID) }.getOrNull()?.let { live = it }
+            }
+            delay(4000)
+        }
+    }
+    val liveLoc = live?.loc
+    val carCoord: Coord? = liveLoc?.coord ?: order?.driverCoord
+    val targetCoord: Coord? = order?.let {
+        if (live?.target == "dropoff" || it.status == OrderStatus.pickedUp || it.status == OrderStatus.delivering) it.dropoff.coord
+        else it.pickup.coord
+    }
+    val distanceKm: Double? = live?.distanceKm
+        ?: if (carCoord != null && targetCoord != null) carCoord.km(targetCoord) * 1.3 else null
+    val etaMin: Int? = live?.etaMin
+        ?: distanceKm?.let { kotlin.math.max(1, (it / 30.0 * 60).toInt()) }
+    val routeLine: List<Coord>? = live?.route?.takeIf { it.size > 1 }?.let { r ->
+        if (live?.target == "pickup" && order != null) r + Geo.route(order.pickup.coord, order.dropoff.coord) else r
+    }
+
     LaunchedEffect(order?.status) {
         val s = order?.status ?: return@LaunchedEffect
         if (s == OrderStatus.delivered || s == OrderStatus.cancelled) { delay(1200); onClose() }
@@ -100,7 +131,9 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         if (order != null) {
             MapCanvas(pickup = order.pickup, dropoff = order.dropoff,
-                driver = order.driverCoord, driverName = driver?.name)
+                driver = carCoord, driverName = driver?.name,
+                driverHeading = liveLoc?.heading, routePath = routeLine,
+                driverStale = liveLoc?.stale == true)
 
             // الشريط العلوي
             Row(
@@ -110,6 +143,16 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
             ) {
                 GlassIconButton("chevron.down", { Feedback.impact(ImpactStyle.light); onClose() }, tint = MB.ink)
                 Spacer(Modifier.weight(1f))
+                if (carCoord != null && distanceKm != null && order.status.isLive) {
+                    Row(
+                        Modifier.glassChip().padding(horizontal = 13.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        SFIcon("car.fill", size = 13.dp, tint = MB.red)
+                        Text("يبعد ${LiveTracking.kmText(distanceKm)}", style = MBType.ar(13, FontWeight.Bold), color = MB.ink)
+                    }
+                }
                 Row(
                     Modifier.glassChip().padding(horizontal = 13.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -145,7 +188,7 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
                             sheetOffset.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 300f))
                         },
                     )
-            ) { Panel(order, driver, onChat = { showChat = true }, onCancel = { showCancel = true }) }
+            ) { Panel(order, driver, distanceKm, etaMin, liveLoc?.stale == true, onChat = { showChat = true }, onCancel = { showCancel = true }) }
         } else {
             BrandBackground()
             OrderClosedView(onClose)
@@ -171,7 +214,7 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
 }
 
 @Composable
-private fun Panel(o: Order, driver: Driver?, onChat: () -> Unit, onCancel: () -> Unit) {
+private fun Panel(o: Order, driver: Driver?, distanceKm: Double?, etaMin: Int?, stale: Boolean, onChat: () -> Unit, onCancel: () -> Unit) {
     val shape = RoundedCornerShape(32.dp)
     Column(
         Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp).padding(bottom = 6.dp)
@@ -187,11 +230,19 @@ private fun Panel(o: Order, driver: Driver?, onChat: () -> Unit, onCancel: () ->
                 modifier = Modifier.weight(1f)) {
                 Text(o.status.title, style = MBType.ar(21, FontWeight.Bold), color = MB.ink)
                 Text(etaText(o), style = MBType.caption, color = MB.ink2)
+                if (distanceKm != null && o.status.isLive && o.status != OrderStatus.searching) {
+                    Text(
+                        if (stale) "آخر موقع للمندوب قديم — قد يكون في منطقة ضعيفة التغطية"
+                        else "المندوب يبعد ${LiveTracking.kmText(distanceKm)} عن ${
+                            if (o.status == OrderStatus.pickedUp || o.status == OrderStatus.delivering) "وجهتك" else "نقطة الاستلام"}",
+                        style = MBType.micro, color = if (stale) MB.red else MB.green)
+                }
             }
             if (o.status == OrderStatus.searching) LoadingDots()
             else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text("${o.etaMinutes}", style = MBType.num(26, FontWeight.Bold), color = MB.green)
+                Text("${etaMin ?: o.etaMinutes}", style = MBType.num(26, FontWeight.Bold), color = MB.green)
                 Text("دقيقة", style = MBType.micro, color = MB.ink2)
+                if (distanceKm != null) Text(LiveTracking.kmText(distanceKm), style = MBType.num(12, FontWeight.SemiBold), color = MB.ink)
             }
         }
 
