@@ -687,6 +687,18 @@ class AppStore {
                     save()
                 }
             }
+            // الرصيد الحقيقي من السيرفر (هو المرجع)
+            DirectorySync.myDriver()?.let { dj ->
+                val di = drivers.indexOfFirst { it.id == did }
+                if (di >= 0 && dj.has("earningsBalance")) {
+                    val bal = dj.optDouble("earningsBalance", drivers[di].earningsBalance)
+                    val cnt = dj.optInt("completedOrders", drivers[di].completedOrders)
+                    if (bal != drivers[di].earningsBalance || cnt != drivers[di].completedOrders) {
+                        drivers = drivers.mapAt(di) { it.copy(earningsBalance = bal, completedOrders = cnt) }
+                        save()
+                    }
+                }
+            }
             val feed = OrdersService.feed()
             drivers.firstOrNull { it.id == did }?.let {
                 com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, it.presence != DriverPresence.offline)
