@@ -119,7 +119,7 @@ fun AdminLiveMap() {
             if (OrdersService.isAvailable) {
                 runCatching { LiveTracking.fleet() }.getOrNull()?.let { remote = it }
             }
-            delay(5000)
+            delay(3000)
         }
     }
 
@@ -146,7 +146,7 @@ fun AdminLiveMap() {
         if (remote == null || cur.driver?.loc == null) return@LaunchedEffect
         while (true) {
             runCatching { LiveTracking.track(id) }.getOrNull()?.let { track = it }
-            delay(4000)
+            delay(3000)
         }
     }
 
