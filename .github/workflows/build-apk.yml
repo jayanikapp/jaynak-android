@@ -14,7 +14,9 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
+          path: |
+            ~/.android/debug.keystore
+            ~/.config/.android/debug.keystore
           key: debug-keystore-v1
       - run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
@@ -23,4 +25,5 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
       - name: Show signing SHA-1
         if: always()
-        run: keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep -E 'SHA1|SHA256'
+        run: |
+          find ~ -name debug.keystore 2>/dev/null | while read k; do echo "== $k"; keytool -list -v -keystore "$k" -storepass android 2>&1 | grep -E 'SHA1|SHA256|rror'; done || true
