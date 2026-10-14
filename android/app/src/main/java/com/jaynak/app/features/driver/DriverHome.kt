@@ -225,6 +225,7 @@ fun ActiveTripCard(order: Order) {
     val store = LocalStore.current
     val context = LocalContext.current
     var showChat by remember { mutableStateOf(false) }
+    var showCancel by remember { mutableStateOf(false) }
     val customer = store.customers.firstOrNull { it.id == order.customerID }
     val toDropoff = order.status == OrderStatus.pickedUp || order.status == OrderStatus.delivering
     val target = if (toDropoff) order.dropoff else order.pickup
@@ -285,7 +286,28 @@ fun ActiveTripCard(order: Order) {
             }
 
             PrimaryCTA(actionTitle, onClick = { store.advance(order) }, symbol = "checkmark.circle.fill")
+            if (order.status == com.jaynak.app.core.OrderStatus.pickingUp ||
+                order.status == com.jaynak.app.core.OrderStatus.assigned) {
+                Text(
+                    "إلغاء الطلب", style = MBType.callout, color = MB.red,
+                    modifier = Modifier.fillMaxWidth().pressable { showCancel = true }.padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
+    }
+
+    if (showCancel) {
+        com.jaynak.app.design.ActionDialog(
+            title = "إلغاء الطلب؟",
+            message = "سيعود الطلب للبحث عن مندوب آخر.",
+            actions = listOf("لا أستطيع الوصول", "تعطّلت مركبتي", "سبب آخر").map { r ->
+                com.jaynak.app.design.DialogAction(r, destructive = true) {
+                    store.cancelOrder(order, r, com.jaynak.app.core.UserRole.driver)
+                }
+            },
+            onDismiss = { showCancel = false },
+        )
     }
 
     if (showChat) {
