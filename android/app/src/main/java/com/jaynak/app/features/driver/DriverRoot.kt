@@ -80,7 +80,7 @@ fun DriverRoot() {
     LaunchedEffect(Unit) {
         while (true) {
             store.refreshDriverFeed()
-            delay(8000)
+            delay(3000)
         }
     }
 
