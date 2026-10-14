@@ -361,12 +361,13 @@ object NavigationLauncher {
     }
 
     /** يفتح محادثة واتساب مع الرقم مباشرة. */
-    fun whatsapp(context: Context, phone: String) {
+    fun whatsapp(context: Context, phone: String, text: String = "") {
         val local = phone.filter { it.isDigit() }.takeLast(8)
         val full = AppConfig.countryDialCode.filter { it.isDigit() } + local
+        val q = if (text.isEmpty()) "" else "?text=" + Uri.encode(text)
         runCatching {
             context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$full"))
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/" + full + q))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
