@@ -10,6 +10,7 @@ import java.util.Locale
 /** يحمل سياق التطبيق للأجزاء التي لا تملك Context (مقابل static في iOS). */
 object Boot {
     lateinit var app: Application
+    @Volatile var activity: android.app.Activity? = null
 }
 
 /** مقابل AppConfig.swift — نفس الثوابت والقيم حرفياً. */
@@ -36,8 +37,11 @@ object AppConfig {
     val demoAdminBypassEnabled: Boolean
         get() = false
 
-    const val otpRequired = false
-const val otpLength = 4
+    const val otpRequired = true
+
+    /** التحقق عبر Firebase بدل Twilio. */
+    const val firebaseEnabled = true
+const val otpLength = 6
     const val otpResendSeconds = 45
 
     const val dispatchFanout = 3
