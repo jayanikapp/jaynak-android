@@ -49,7 +49,8 @@ const val otpLength = 6
 
     val builtInAPIBase: String get() = productionAPIBase
 
-    const val productionAPIBase = "https://jayanikapp.onrender.com"
+    // تجريبي: سيرفر الـVPS مباشرة بالـIP (يرجع لـ https://api.jayanik.com بعد ضبط DNS)
+    const val productionAPIBase = "http://31.57.97.74:8787"
 
     private val store: SecureStore by lazy { SecureStore(Boot.app) }
 
