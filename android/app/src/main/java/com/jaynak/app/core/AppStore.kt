@@ -1943,6 +1943,8 @@ class AppStore {
             i++
             if (!orders[idx].status.isLive) continue
             var o = orders[idx]
+            // السيرفر هو المصدر الوحيد للحالة: لا محاكاة للطلبات الحقيقية
+            if (o.remoteID != null || OrdersService.isAvailable) continue
 
             when (o.status) {
                 OrderStatus.searching -> {
