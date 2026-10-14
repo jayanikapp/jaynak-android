@@ -71,7 +71,8 @@ private fun SignedIn() {
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) {
             store.syncProfile()
-            kotlinx.coroutines.delay(15000)
+            store.refreshMyOrders()
+            kotlinx.coroutines.delay(5000)
         }
     }
 
