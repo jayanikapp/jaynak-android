@@ -207,7 +207,7 @@ class AppStore {
                 return AuthOutcome.failed
             }
         }
-if (!AppConfig.otpRequired && !isAdminPhone) { verifiedPhone = phone; challenge = null; return if (completeSignIn(role, mode, pendingSignUpName)) AuthOutcome.enteredDirectly else AuthOutcome.failed }
+        if (!AppConfig.otpRequired) { verifiedPhone = phone; challenge = null; if (isAdminPhone) { signInAdmin(phone, viaDemo = false); return if (session?.role == UserRole.admin) AuthOutcome.enteredDirectly else AuthOutcome.failed }; return if (completeSignIn(role, mode, pendingSignUpName)) AuthOutcome.enteredDirectly else AuthOutcome.failed }
         return try {
             challenge = OTPService.send(phone)
             Feedback.impact(ImpactStyle.light)
