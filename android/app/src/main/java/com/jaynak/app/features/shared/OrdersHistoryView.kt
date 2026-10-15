@@ -197,6 +197,10 @@ fun OrderDetailSheet(order: Order, role: UserRole, onDismiss: () -> Unit) {
                         }
                     }
 
+                    if (live.remoteID != null) {
+                        com.jaynak.app.features.shared.ProofRow(live.remoteID)
+                    }
+
                     if (role != UserRole.customer && customer != null) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
