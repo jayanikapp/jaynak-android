@@ -1,0 +1,27 @@
+name: Build AAB (Google Play)
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - name: Decode keystore
+        env:
+          KS_B64: ${{ secrets.JAYNAK_KEYSTORE_B64 }}
+        run: echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/jaynak.keystore"
+      - name: Build release bundle
+        env:
+          JAYNAK_KEYSTORE: ${{ runner.temp }}/jaynak.keystore
+          JAYNAK_STOREPASS: ${{ secrets.JAYNAK_STOREPASS }}
+          JAYNAK_KEYPASS: ${{ secrets.JAYNAK_STOREPASS }}
+        run: chmod +x gradlew && ./gradlew bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jaynak-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
