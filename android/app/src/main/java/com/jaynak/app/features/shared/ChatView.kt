@@ -24,7 +24,15 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import com.jaynak.app.design.MBChip
+import com.jaynak.app.design.MBTextArea
+import com.jaynak.app.design.clickableNoRipple
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,10 +77,27 @@ fun ChatView(
     var menu by remember { mutableStateOf(false) }
     val messages = store.thread(threadID)
     val listState = rememberLazyListState()
-
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
+    val isSupport = threadID.startsWith("support")
+    val ticket = if (isSupport) store.ticketFor(threadID) else null
+    var showClose by remember { mutableStateOf(false) }
+    var showTransfer by remember { mutableStateOf(false) }
+    var dept by remember { mutableStateOf("") }
+    // رأس لكل تذكرة جديدة داخل المحادثة
+    val entries: List<Any> = remember(messages, isSupport) {
+        buildList {
+            var prev = 0
+            for (m in messages) {
+                if (isSupport && m.ticketNo != 0 && m.ticketNo != prev) { add(m.ticketNo); prev = m.ticketNo }
+                add(m)
+            }
+        }
     }
+
+    LaunchedEffect(entries.size) {
+        if (entries.isNotEmpty()) listState.animateScrollToItem(entries.lastIndex)
+        store.markRead(threadID)
+    }
+    DisposableEffect(Unit) { onDispose { store.markRead(threadID) } }
 
     JSheet(onDismiss = onDismiss) {
         Box(Modifier.fillMaxSize()) {
@@ -107,6 +132,24 @@ fun ChatView(
                     } else Spacer(Modifier.size(36.dp))
                 }
 
+                if (isSupport && ticket != null) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MBChip("تذكرة #${ticket.no}", tint = if (ticket.isClosed) MB.ink3 else MB.green, filled = !ticket.isClosed)
+                        MBChip(if (ticket.isClosed) "مغلقة" else "مفتوحة", tint = if (ticket.isClosed) MB.ink3 else MB.green)
+                        if (ticket.dept.isNotBlank()) MBChip(ticket.dept, tint = MB.red, filled = true)
+                        Spacer(Modifier.weight(1f))
+                        if (!ticket.isClosed) {
+                            if (role == UserRole.admin)
+                                Text("تحويل", style = MBType.callout.copy(fontWeight = FontWeight.Bold), color = MB.red,
+                                    modifier = Modifier.clickableNoRipple { dept = ""; showTransfer = true }.padding(8.dp))
+                            Text("إغلاق التذكرة", style = MBType.callout.copy(fontWeight = FontWeight.Bold), color = MB.red,
+                                modifier = Modifier.clickableNoRipple { showClose = true }.padding(8.dp))
+                        }
+                    }
+                }
+
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
                     state = listState,
@@ -118,14 +161,22 @@ fun ChatView(
                             if (moderatable) "نسّق تفاصيل الاستلام والتسليم هنا"
                             else "اكتب مشكلتك وسيردّ عليك فريق الدعم")
                     }
-                    items(messages, key = { it.id }) { m ->
-                        Bubble(m, moderatable) { store.reportMessage(m) }
+                    items(entries, key = { if (it is ChatMessage) it.id else "t$it" }) { e ->
+                        if (e is Int) Text("— تذكرة #$e —", style = MBType.micro, color = MB.ink3,
+                            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                        else if (e is ChatMessage) Bubble(e, moderatable) { store.reportMessage(e) }
                     }
                     if (blocked) item {
                         Text("حجبت هذا المستخدم — لن تصلك رسائل جديدة منه",
                             style = MBType.micro, color = MB.red, modifier = Modifier.padding(top = 6.dp))
                     }
                 }
+
+                if (ticket?.isClosed == true) Text(
+                    if (role == UserRole.admin) "التذكرة مغلقة — ردّك سيعيد فتحها"
+                    else "التذكرة مغلقة — أرسل رسالة جديدة لفتح تذكرة جديدة",
+                    style = MBType.micro, color = MB.ink3, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
 
                 // المُحرّر
                 Row(
@@ -153,6 +204,25 @@ fun ChatView(
         }
     }
 
+    if (showClose) ConfirmDialog(
+        title = "إغلاق التذكرة؟", message = "يمكن فتح تذكرة جديدة بإرسال رسالة.",
+        confirmText = "إغلاق", destructive = true,
+        onConfirm = { store.closeTicket(threadID); showClose = false },
+        onDismiss = { showClose = false })
+    if (showTransfer) AlertDialog(
+        onDismissRequest = { showTransfer = false }, containerColor = MB.raised,
+        title = { Text("تحويل التذكرة", style = MBType.headline, color = MB.ink) },
+        text = {
+            MBTextArea(dept, { dept = it }, "اكتب القسم، مثال: القسم الفني", Modifier.fillMaxWidth(),
+                minLines = 1, maxLines = 2, radius = 14.dp, padding = 12.dp)
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (dept.isNotBlank()) { store.transferTicket(threadID, dept); showTransfer = false }
+            }) { Text("تحويل", color = MB.red) }
+        },
+        dismissButton = { TextButton(onClick = { showTransfer = false }) { Text("إلغاء", color = MB.ink2) } })
+
     if (showBlockConfirm) {
         ConfirmDialog(
             title = "حجب هذا المستخدم؟",
@@ -178,6 +248,23 @@ private fun Modifier.combinedClickableNoRipple(onClick: () -> Unit): Modifier = 
 @Composable
 private fun Bubble(message: ChatMessage, moderatable: Boolean, onReport: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
+    if (message.kind == "transfer") {
+        // رسالة التحويل بالأحمر
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(message.body, style = MBType.body.copy(fontWeight = FontWeight.Bold), color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.background(MB.red, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp))
+            Text(Fmt.timeShort(message.date), style = MBType.micro, color = MB.ink3)
+        }
+        return
+    }
+    if (message.kind == "close") {
+        Text(message.body, style = MBType.micro, color = MB.ink3, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))
+        return
+    }
     Row(Modifier.fillMaxWidth()) {
         if (message.isMine) Spacer(Modifier.weight(1f).widthIn(min = 40.dp))
         Box {
