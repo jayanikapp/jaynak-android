@@ -98,7 +98,7 @@ class MapCarOverlay(private val density: Float) : Overlay() {
     }
 
     private fun drawCar(c: Canvas, s: State, x: Float, y: Float, now: Long) {
-        val size = dp(46f)
+        val size = dp(60f)
         val alpha = if (s.stale) 140 else 255
 
         // نبض حيّ
@@ -114,72 +114,124 @@ class MapCarOverlay(private val density: Float) : Overlay() {
         c.save()
         c.translate(x, y)
         c.rotate(s.rot)
-        c.translate(-size / 2, -size / 2)
-        val w = size; val h = size
-        val cw = w * 0.50f; val ch = h * 0.92f
-        val x0 = (w - cw) / 2; val y0 = (h - ch) / 2
-        val body = s.color
-
+        val hl = size * 0.50f            // نصف الطول (المقدمة للأعلى)
+        val hw = hl * 0.50f              // نصف العرض
         fun a(col: Int) = (col and 0x00FFFFFF) or (alpha shl 24)
-        // ظل على الأرض
-        fill.color = (0x47 * alpha / 255) shl 24
-        rr(c, x0 - 2f, y0 + h * 0.05f, x0 + cw + 2f, y0 + ch + h * 0.05f, cw * 0.42f, fill)
-        // مرايا
-        fill.color = a(0xFF1B1B1F.toInt())
-        rr(c, x0 - cw * 0.14f, y0 + ch * 0.27f, x0 + cw * 0.04f, y0 + ch * 0.335f, 4f, fill)
-        rr(c, x0 + cw * 0.96f, y0 + ch * 0.27f, x0 + cw * 1.14f, y0 + ch * 0.335f, 4f, fill)
-        // عجلات
-        fill.color = a(0xFF111114.toInt())
-        for (fy in floatArrayOf(0.16f, 0.70f)) {
-            rr(c, x0 - cw * 0.07f, y0 + ch * fy, x0 + cw * 0.03f, y0 + ch * (fy + 0.16f), 3f, fill)
-            rr(c, x0 + cw * 0.97f, y0 + ch * fy, x0 + cw * 1.07f, y0 + ch * (fy + 0.16f), 3f, fill)
-        }
-        // الجسم بتدرّج جانبي
+        fun X(u: Float) = u * hw
+        fun Y(v: Float) = v * hl
+        val body = s.color
         val dark = darker(body)
-        fill.shader = LinearGradient(x0, 0f, x0 + cw, 0f, intArrayOf(a(dark), a(body), a(dark)), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
-        rr(c, x0, y0, x0 + cw, y0 + ch, cw * 0.40f, fill)
+        val light = lighter(body)
+
+        // ظل ناعم على الأرض
         fill.shader = null
-        line.color = a(0xFFFFFFFF.toInt()); line.strokeWidth = w * 0.035f
-        rr(c, x0, y0, x0 + cw, y0 + ch, cw * 0.40f, line)
-        // لمعة غطاء المحرك
-        fill.color = 0x29FFFFFF
-        rr(c, x0 + cw * 0.18f, y0 + ch * 0.05f, x0 + cw * 0.82f, y0 + ch * 0.22f, cw * 0.25f, fill)
+        fill.color = (0x40 * alpha / 255) shl 24
+        rr(c, X(-1.06f), Y(-0.92f) + dp(3f), X(1.06f), Y(1.02f) + dp(3f), hw * 0.9f, fill)
+
+        // العجلات
+        fill.color = a(0xFF0E0E10.toInt())
+        for (v in floatArrayOf(-0.62f, 0.40f)) {
+            rr(c, X(-1.10f), Y(v), X(-0.88f), Y(v + 0.30f), dp(3f), fill)
+            rr(c, X(0.88f), Y(v), X(1.10f), Y(v + 0.30f), dp(3f), fill)
+        }
+        // المرايا الجانبية
+        fill.color = a(dark)
+        path.reset(); path.moveTo(X(-0.95f), Y(-0.34f)); path.lineTo(X(-1.20f), Y(-0.30f)); path.lineTo(X(-1.17f), Y(-0.20f)); path.lineTo(X(-0.95f), Y(-0.22f)); path.close()
+        c.drawPath(path, fill)
+        path.reset(); path.moveTo(X(0.95f), Y(-0.34f)); path.lineTo(X(1.20f), Y(-0.30f)); path.lineTo(X(1.17f), Y(-0.20f)); path.lineTo(X(0.95f), Y(-0.22f)); path.close()
+        c.drawPath(path, fill)
+
+        // هيكل السيارة (أنف مقوّس + مؤخرة مستديرة)
+        val bodyPath = Path().apply {
+            moveTo(X(-0.55f), Y(-0.97f))
+            cubicTo(X(-0.20f), Y(-1.04f), X(0.20f), Y(-1.04f), X(0.55f), Y(-0.97f))
+            cubicTo(X(0.88f), Y(-0.90f), X(1.0f), Y(-0.72f), X(1.0f), Y(-0.45f))
+            lineTo(X(1.0f), Y(0.55f))
+            cubicTo(X(1.0f), Y(0.82f), X(0.90f), Y(0.95f), X(0.60f), Y(0.99f))
+            cubicTo(X(0.20f), Y(1.03f), X(-0.20f), Y(1.03f), X(-0.60f), Y(0.99f))
+            cubicTo(X(-0.90f), Y(0.95f), X(-1.0f), Y(0.82f), X(-1.0f), Y(0.55f))
+            lineTo(X(-1.0f), Y(-0.45f))
+            cubicTo(X(-1.0f), Y(-0.72f), X(-0.88f), Y(-0.90f), X(-0.55f), Y(-0.97f))
+            close()
+        }
+        fill.shader = LinearGradient(X(-1f), 0f, X(1f), 0f,
+            intArrayOf(a(dark), a(light), a(body), a(dark)), floatArrayOf(0f, 0.30f, 0.62f, 1f), Shader.TileMode.CLAMP)
+        c.drawPath(bodyPath, fill)
+        fill.shader = null
+        line.color = a(0xFFFFFFFF.toInt()); line.strokeWidth = dp(1.6f)
+        c.drawPath(bodyPath, line)
+
+        // خطوط غطاء المحرك وصندوق الخلف
+        fill.color = 0x2EFFFFFF
+        rr(c, X(-0.46f), Y(-0.90f), X(0.46f), Y(-0.52f), hw * 0.45f, fill)
+        fill.color = 0x1FFFFFFF
+        rr(c, X(-0.50f), Y(0.62f), X(0.50f), Y(0.92f), hw * 0.40f, fill)
+
         // الزجاج الأمامي
-        val glass = a(0xFF14202B.toInt())
+        val glass = a(0xFF101B26.toInt())
         fill.color = glass
         path.reset()
-        path.moveTo(x0 + cw * 0.14f, y0 + ch * 0.37f); path.lineTo(x0 + cw * 0.22f, y0 + ch * 0.24f)
-        path.lineTo(x0 + cw * 0.78f, y0 + ch * 0.24f); path.lineTo(x0 + cw * 0.86f, y0 + ch * 0.37f); path.close()
+        path.moveTo(X(-0.80f), Y(-0.46f))
+        path.cubicTo(X(-0.45f), Y(-0.58f), X(0.45f), Y(-0.58f), X(0.80f), Y(-0.46f))
+        path.lineTo(X(0.68f), Y(-0.18f)); path.lineTo(X(-0.68f), Y(-0.18f)); path.close()
         c.drawPath(path, fill)
+        // انعكاس على الزجاج
+        fill.color = 0x33FFFFFF
+        path.reset()
+        path.moveTo(X(-0.55f), Y(-0.44f)); path.lineTo(X(-0.10f), Y(-0.46f)); path.lineTo(X(-0.28f), Y(-0.22f)); path.lineTo(X(-0.62f), Y(-0.22f)); path.close()
+        c.drawPath(path, fill)
+
         // السقف
-        fill.color = a(body)
-        rr(c, x0 + cw * 0.15f, y0 + ch * 0.37f, x0 + cw * 0.85f, y0 + ch * 0.61f, cw * 0.10f, fill)
-        fill.color = 0x38FFFFFF
-        rr(c, x0 + cw * 0.22f, y0 + ch * 0.40f, x0 + cw * 0.78f, y0 + ch * 0.48f, cw * 0.06f, fill)
-        // الزجاج الخلفي
+        fill.shader = LinearGradient(X(-1f), 0f, X(1f), 0f,
+            intArrayOf(a(dark), a(light), a(body)), floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
+        rr(c, X(-0.74f), Y(-0.18f), X(0.74f), Y(0.30f), hw * 0.28f, fill)
+        fill.shader = null
+        fill.color = 0x30FFFFFF
+        rr(c, X(-0.50f), Y(-0.12f), X(0.30f), Y(0.08f), hw * 0.20f, fill)
+
+        // النوافذ الجانبية
         fill.color = glass
+        rr(c, X(-0.90f), Y(-0.16f), X(-0.76f), Y(0.28f), dp(2f), fill)
+        rr(c, X(0.76f), Y(-0.16f), X(0.90f), Y(0.28f), dp(2f), fill)
+
+        // الزجاج الخلفي
         path.reset()
-        path.moveTo(x0 + cw * 0.15f, y0 + ch * 0.61f); path.lineTo(x0 + cw * 0.85f, y0 + ch * 0.61f)
-        path.lineTo(x0 + cw * 0.76f, y0 + ch * 0.73f); path.lineTo(x0 + cw * 0.24f, y0 + ch * 0.73f); path.close()
+        path.moveTo(X(-0.68f), Y(0.30f)); path.lineTo(X(0.68f), Y(0.30f)); path.lineTo(X(0.78f), Y(0.50f))
+        path.cubicTo(X(0.40f), Y(0.60f), X(-0.40f), Y(0.60f), X(-0.78f), Y(0.50f)); path.close()
         c.drawPath(path, fill)
-        // مصابيح
-        fill.color = a(0xFFFFF4C2.toInt())
-        rr(c, x0 + cw * 0.10f, y0 + ch * 0.015f, x0 + cw * 0.34f, y0 + ch * 0.065f, 3f, fill)
-        rr(c, x0 + cw * 0.66f, y0 + ch * 0.015f, x0 + cw * 0.90f, y0 + ch * 0.065f, 3f, fill)
-        fill.color = a(0xFFFF1F2D.toInt())
-        rr(c, x0 + cw * 0.10f, y0 + ch * 0.935f, x0 + cw * 0.36f, y0 + ch * 0.975f, 3f, fill)
-        rr(c, x0 + cw * 0.64f, y0 + ch * 0.935f, x0 + cw * 0.90f, y0 + ch * 0.975f, 3f, fill)
+
+        // المصابيح الأمامية (توهّج أبيض مائل للأصفر)
+        fill.color = 0x40FFF4C2
+        c.drawCircle(X(-0.58f), Y(-0.97f), hw * 0.34f, fill)
+        c.drawCircle(X(0.58f), Y(-0.97f), hw * 0.34f, fill)
+        fill.color = a(0xFFFFF7D6.toInt())
+        path.reset()
+        path.moveTo(X(-0.86f), Y(-0.86f)); path.lineTo(X(-0.30f), Y(-0.96f)); path.lineTo(X(-0.34f), Y(-0.88f)); path.lineTo(X(-0.84f), Y(-0.78f)); path.close()
+        c.drawPath(path, fill)
+        path.reset()
+        path.moveTo(X(0.86f), Y(-0.86f)); path.lineTo(X(0.30f), Y(-0.96f)); path.lineTo(X(0.34f), Y(-0.88f)); path.lineTo(X(0.84f), Y(-0.78f)); path.close()
+        c.drawPath(path, fill)
+        // المصابيح الخلفية
+        fill.color = a(0xFFFF2A38.toInt())
+        rr(c, X(-0.86f), Y(0.90f), X(-0.34f), Y(0.97f), dp(2f), fill)
+        rr(c, X(0.34f), Y(0.90f), X(0.86f), Y(0.97f), dp(2f), fill)
         c.restore()
 
         s.label?.let { lb ->
             text.textSize = dp(11f)
             val tw = text.measureText(lb) + dp(16f); val th = dp(20f)
-            val top = y + dp(30f)
+            val top = y + dp(36f)
             rect.set(x - tw / 2, top, x + tw / 2, top + th)
             fill.color = 0xCC000000.toInt()
             c.drawRoundRect(rect, th / 2, th / 2, fill)
             c.drawText(lb, x, top + th / 2 - (text.ascent() + text.descent()) / 2, text)
         }
+    }
+
+    private fun lighter(col: Int): Int {
+        val r = ((col shr 16) and 0xFF); val g = ((col shr 8) and 0xFF); val b = (col and 0xFF)
+        fun l(v: Int) = (v + (255 - v) * 0.38f).toInt()
+        return (0xFF shl 24) or (l(r) shl 16) or (l(g) shl 8) or l(b)
     }
 
     private fun darker(col: Int): Int {
@@ -189,7 +241,7 @@ class MapCarOverlay(private val density: Float) : Overlay() {
 
     override fun onSingleTapConfirmed(e: MotionEvent, map: MapView): Boolean {
         val proj = map.projection ?: return false
-        val r = dp(28f)
+        val r = dp(34f)
         for ((id, s) in states.entries.reversed()) {
             proj.toPixels(GeoPoint(s.lat, s.lon), pt)
             if (abs(pt.x - e.x) < r && abs(pt.y - e.y) < r) { onTap(id); return true }
