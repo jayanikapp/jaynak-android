@@ -7,13 +7,13 @@ plugins {
 
 android {
     namespace = "com.jaynak.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.jaynak.app"
         minSdk = 24                 // أندرويد ٧ وما بعده — يغطّي ما يحمله المندوبون
-        targetSdk = 35
-        versionCode = 8
+        targetSdk = 36
+        versionCode = 9
         versionName = "2.2"
 buildConfigField("boolean", "DEMO_ACCESS", "false")
     }
