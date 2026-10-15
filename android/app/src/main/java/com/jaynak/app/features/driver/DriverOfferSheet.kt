@@ -85,6 +85,13 @@ fun DriverOfferSheet(order: Order) {
         }
     }
 
+    val urgent = order.dispatchMode == DispatchMode.nearby
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse").animateFloat(
+        initialValue = 0.18f, targetValue = 0.5f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(450), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "pulseAlpha").value
+
     Dialog(
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false,
@@ -94,7 +101,7 @@ fun DriverOfferSheet(order: Order) {
             Box(Modifier.fillMaxWidth().height(520.dp).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))) {
                 BrandBackground(intensity = 1.2f)
                 if (order.dispatchMode == DispatchMode.nearby) {
-                    Box(Modifier.fillMaxSize().background(MB.red.copy(alpha = 0.22f)))
+                    Box(Modifier.fillMaxSize().background(MB.red.copy(alpha = pulse)))
                 }
                 Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -120,7 +127,11 @@ fun DriverOfferSheet(order: Order) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         if (order.dispatchMode == DispatchMode.nearby) {
-                            Text("🚨 طلب سريع جداً 🚨", style = MBType.title, color = MB.red)
+                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MB.red).padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center) {
+                                Text("🚨 طارئ — طلب سريع جداً 🚨", style = MBType.title,
+                                    color = androidx.compose.ui.graphics.Color.White)
+                            }
                         } else Text("طلب جديد", style = MBType.title, color = MB.ink)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MBChip(order.kind.title, symbol = order.kind.symbol, filled = true)
@@ -137,7 +148,7 @@ fun DriverOfferSheet(order: Order) {
                             "arrow.triangle.turn.up.right.diamond.fill", Modifier.weight(1f), tint = androidx.compose.ui.graphics.Color(0xFFFF9500))
                     }
 
-                    GlassCard(Modifier.fillMaxWidth(), padding = 14.dp) {
+                    GlassCard(Modifier.fillMaxWidth(), padding = 14.dp, tint = if (urgent) MB.red.copy(alpha = 0.22f) else null) {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp),
                             horizontalAlignment = Alignment.End) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
