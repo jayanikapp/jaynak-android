@@ -49,8 +49,7 @@ const val otpLength = 6
 
     val builtInAPIBase: String get() = productionAPIBase
 
-    // تجريبي: سيرفر الـVPS مباشرة بالـIP (يرجع لـ https://api.jayanik.com بعد ضبط DNS)
-    const val productionAPIBase = "http://31.57.97.74:8787"
+    const val productionAPIBase = "https://api.jaynaik.app"
 
     private val store: SecureStore by lazy { SecureStore(Boot.app) }
 
@@ -92,9 +91,9 @@ const val otpLength = 6
         return v
     }
 
-    const val privacyPolicyURL = "http://jayanik.om/privacy-policy"
-    const val refundPolicyURL = "http://jayanik.om/refund-policy"
-    const val termsURL = "http://jayanik.om/terms"
+    const val privacyPolicyURL = "https://jaynaik.app/privacy"
+    const val refundPolicyURL = "https://jaynaik.app/refund-policy"
+    const val termsURL = "https://jaynaik.app/terms"
     const val supportEmail = "jayanikapp2@gmail.com"
     const val supportPhone = "+968 76004660"
 
