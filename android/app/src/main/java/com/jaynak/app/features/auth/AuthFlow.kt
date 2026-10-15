@@ -596,11 +596,11 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
                 )
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     Row(
-                        Modifier.offset(x = shake.value.dp)
+                        Modifier.fillMaxWidth().offset(x = shake.value.dp)
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 focus.requestFocus()
                             },
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         for (i in 0 until AppConfig.otpLength) {
                             val filled = i < code.length
@@ -608,7 +608,7 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
                             val sc by animateFloatAsState(if (filled) 1f else if (active) 1.04f else 0.98f,
                                 spring(stiffness = 520f), label = "box")
                             Box(
-                                Modifier.size(64.dp, 74.dp).scale(sc)
+                                Modifier.weight(1f).height(68.dp).scale(sc)
                                     .glassSurface(20.dp, if (filled) tint.copy(alpha = 0.28f) else null)
                                     .border(
                                         if (active) 2.dp else 1.5.dp,
