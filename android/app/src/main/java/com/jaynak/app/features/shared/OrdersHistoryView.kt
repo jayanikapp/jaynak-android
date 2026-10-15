@@ -4,6 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -132,6 +140,8 @@ fun OrderDetailSheet(order: Order, role: UserRole, onDismiss: () -> Unit) {
     val live = store.orders.firstOrNull { it.id == order.id } ?: order
     val driver = store.drivers.firstOrNull { it.id == live.driverID }
     val customer = store.customers.firstOrNull { it.id == live.customerID }
+    var fullMap by remember { mutableStateOf(false) }
+    if (fullMap) OrderFullMap(live) { fullMap = false }
 
     JSheet(onDismiss = onDismiss) {
         Box(Modifier.fillMaxSize()) {
@@ -150,12 +160,19 @@ fun OrderDetailSheet(order: Order, role: UserRole, onDismiss: () -> Unit) {
                     Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    MapCanvas(
-                        pickup = live.pickup, dropoff = live.dropoff,
-                        modifier = Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(22.dp)),
-                        driver = if (live.status.isLive) live.driverCoord else null,
-                        interactive = false,
-                    )
+                    Box(Modifier.fillMaxWidth().height(210.dp).clip(RoundedCornerShape(22.dp))
+                        .clickableNoRipple { fullMap = true }) {
+                        MapCanvas(
+                            pickup = live.pickup, dropoff = live.dropoff,
+                            modifier = Modifier.fillMaxSize(),
+                            driver = if (live.status.isLive) live.driverCoord else null,
+                            interactive = false,
+                        )
+                        Text("اضغط لفتح الخريطة والتحكم بها", style = MBType.micro, color = Color.White,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(50))
+                                .padding(horizontal = 12.dp, vertical = 6.dp))
+                    }
 
                     GlassCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -250,6 +267,45 @@ fun OrderDetailSheet(order: Order, role: UserRole, onDismiss: () -> Unit) {
                     }
                     Spacer(Modifier.height(30.dp))
                 }
+            }
+        }
+    }
+}
+
+
+/** خريطة الطلب بملء الشاشة: تحريك وتكبير حر، مع اختيار شكل الخريطة وإعادة التوسيط. */
+@Composable
+private fun OrderFullMap(o: Order, onClose: () -> Unit) {
+    var fitKey by remember { mutableIntStateOf(0) }
+    Dialog(onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Box(Modifier.fillMaxSize().background(MB.sunken)) {
+            MapCanvas(
+                pickup = o.pickup, dropoff = o.dropoff,
+                modifier = Modifier.fillMaxSize(),
+                driver = if (o.status.isLive) o.driverCoord else null,
+                interactive = true, followDriver = false, fitKey = fitKey,
+            )
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(42.dp).background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                    .clickableNoRipple(onClose), contentAlignment = Alignment.Center) {
+                    Text("✕", style = MBType.callout, color = Color.White)
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text(o.ref, style = MBType.num(15, FontWeight.Bold), color = Color.White,
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(50))
+                            .padding(horizontal = 14.dp, vertical = 8.dp))
+                }
+                Box(Modifier.size(42.dp))
+            }
+            MapStyleSwitch(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp))
+            Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("إظهار المسار كاملاً", style = MBType.ar(13, FontWeight.SemiBold), color = Color.White,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(50))
+                        .clickableNoRipple { fitKey++ }
+                        .padding(horizontal = 18.dp, vertical = 11.dp))
             }
         }
     }
