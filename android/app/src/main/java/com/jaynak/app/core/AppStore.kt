@@ -797,7 +797,8 @@ class AppStore {
                     else -> 9
                 }
                 // السيرفر قد يتأخر لحظة عن ضغطة المندوب — لا نُرجع الحالة للخلف أبداً
-                val keepLocal = it.status.isLive && status.isLive && it.driverID == did && rank(it.status) > rank(status)
+                val keepLocal = (it.status.isLive && status.isLive && it.driverID == did && rank(it.status) > rank(status)) ||
+                    (it.status == OrderStatus.delivered && status != OrderStatus.cancelled)
                 it.copy(
                     status = if (keepLocal) it.status else status,
                     driverID = if (remote.driverID != null && status.isLive) did else it.driverID,
