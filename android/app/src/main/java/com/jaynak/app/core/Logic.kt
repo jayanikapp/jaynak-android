@@ -112,7 +112,9 @@ object PricingEngine {
         }
 
         val total = round3(max(0.0, subtotal - discount))
-        val commission = round3(commission(total, rules))
+        val commission = round3(
+            if (express) min(total, max(rules.minCommission, total * rules.expressCommissionPerRial))
+            else commission(total, rules))
         val driverPayout = round3(total - commission)
 
         return PriceBreakdown(
