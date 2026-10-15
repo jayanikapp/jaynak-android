@@ -675,7 +675,13 @@ data class ChatMessage(
     val body: String,
     val date: Long = nowMs(),
     val isReported: Boolean = false,
+    val kind: String = "msg",     // msg | transfer | close
+    val ticketNo: Int = 0,
 )
+
+data class SupportTicketInfo(val no: Int, val status: String, val dept: String) {
+    val isClosed: Boolean get() = status == "closed"
+}
 
 @Serializable
 enum class TicketStatus {
