@@ -495,6 +495,7 @@ class AppStore {
             expressBaseFare = d("expressBaseFare", r.expressBaseFare),
             expressPerKm = d("expressPerKm", r.expressPerKm),
             expressPerMinute = d("expressPerMinute", r.expressPerMinute),
+            expressCommissionPerRial = d("expressCommissionPerRial", r.expressCommissionPerRial),
             maxCustomerOrders = n("maxCustomerOrders", r.maxCustomerOrders),
             maxDriverOpen = n("maxDriverOpen", r.maxDriverOpen),
             maxDriverExpress = n("maxDriverExpress", r.maxDriverExpress),
@@ -511,7 +512,7 @@ class AppStore {
             .put("minimumFare", r.minimumFare).put("peakMultiplier", r.peakMultiplier)
             .put("fixedCommission", r.fixedCommission).put("minCommission", r.minCommission)
             .put("expressBaseFare", r.expressBaseFare).put("expressPerKm", r.expressPerKm)
-            .put("expressPerMinute", r.expressPerMinute)
+            .put("expressPerMinute", r.expressPerMinute).put("expressCommissionPerRial", r.expressCommissionPerRial)
             .put("maxCustomerOrders", r.maxCustomerOrders).put("maxDriverOpen", r.maxDriverOpen)
             .put("maxDriverExpress", r.maxDriverExpress)
         scope.launch {
@@ -1521,7 +1522,9 @@ class AppStore {
                 }
                 awardTierPoints(Loyalty.tierPointsPerDelivery, di, "توصيلة")
 
-                val raw = PricingEngine.commission(
+                val raw = if (o.dispatchMode == DispatchMode.nearby)
+                    min(o.price.total, max(rules.minCommission, o.price.total * rules.expressCommissionPerRial))
+                else PricingEngine.commission(
                     o.price.total, rules,
                     fee = drivers[di].commissionFee,
                     rateDiscount = drivers[di].tier.commissionDiscount,
