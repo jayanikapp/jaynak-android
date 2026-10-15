@@ -312,8 +312,16 @@ object OrdersService {
             JSONObject().put("id", id).put("thread", thread).put("body", body).put("role", role))
     }
 
-    suspend fun chatList(since: Double): org.json.JSONArray =
-        send("api/chat?since=$since", "GET", null).optJSONArray("messages") ?: org.json.JSONArray()
+    suspend fun chatList(since: Double): JSONObject =
+        send("api/chat?since=$since", "GET", null)
+
+    suspend fun chatClose(thread: String) {
+        send("api/chat/close", "POST", JSONObject().put("thread", thread))
+    }
+
+    suspend fun chatTransfer(thread: String, dept: String) {
+        send("api/chat/transfer", "POST", JSONObject().put("thread", thread).put("dept", dept))
+    }
 
     suspend fun fetchRules(): JSONObject? =
         send("api/rules", "GET", null).optJSONObject("rules")
