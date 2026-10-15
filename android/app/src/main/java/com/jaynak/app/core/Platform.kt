@@ -179,6 +179,12 @@ object Feedback {
         impact(ImpactStyle.heavy)
     }
 
+    /** نغمة رسالة جديدة (مختلفة عن الطلبات). */
+    fun message() {
+        play(listOf(Tone(1046.5, 0.09), Tone(1568.0, 0.16)), 0.7f)
+        impact(ImpactStyle.medium)
+    }
+
     /** صفّارة عالية لطلب سريع جداً. */
     fun urgentOffer() {
         scope.launch {
@@ -367,6 +373,29 @@ object Notifications {
             .build()
         runCatching {
             NotificationManagerCompat.from(Boot.app).notify("offer-$ref".hashCode(), n)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun chat(from: String, text: String) {
+        if (!authorized) return
+        ensureChannel()
+        val open = PendingIntent.getActivity(
+            Boot.app, 0, Intent(Boot.app, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(Boot.app, CH_OFFERS)
+            .setContentTitle("رسالة من $from")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(Boot.app).notify("chat-$from".hashCode(), n)
         }
     }
 
