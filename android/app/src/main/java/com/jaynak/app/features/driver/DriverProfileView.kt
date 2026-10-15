@@ -105,7 +105,7 @@ fun DriverProfileView() {
 
                     SettingsGroup("الحساب", listOf(
                         SettingsRow("تعديل المستندات والبيانات", "doc.badge.gearshape", action = { showDocs = true }),
-                        SettingsRow("الدعم الفني", "bubble.left.and.text.bubble.right.fill", action = { showSupport = true }),
+                        SettingsRow("الدعم الفني", "bubble.left.and.text.bubble.right.fill", badge = store.unread("support"), action = { showSupport = true }),
                         SettingsRow("الشروط وسياسة الخصوصية", "hand.raised.fill", action = { showLegal = true }),
                     ), tint = MB.red)
 
