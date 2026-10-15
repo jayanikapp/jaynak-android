@@ -6,7 +6,7 @@ import org.json.JSONObject
 /** تتبّع حيّ: موقع المندوب الحقيقي، المسار على الطرق، المسافة والوقت. */
 object LiveTracking {
 
-    data class Loc(val coord: Coord, val heading: Float?, val speed: Double, val stale: Boolean)
+    data class Loc(val coord: Coord, val heading: Float?, val speed: Double, val stale: Boolean, val icon: Int = 0)
 
     data class Track(
         val status: String,
@@ -66,11 +66,21 @@ object LiveTracking {
         )
     }
 
+    /** شكل مركبة المندوب على الخريطة (٠–٤) — يُحفظ على الجهاز ويُرسل مع كل تحديث موقع. */
+    private val iconState = androidx.compose.runtime.mutableIntStateOf(
+        runCatching { Boot.app.getSharedPreferences("jaynak.car", 0).getInt("icon", 0) }.getOrDefault(0))
+    val myIcon: Int get() = iconState.intValue
+
+    fun chooseIcon(i: Int) {
+        iconState.intValue = i
+        runCatching { Boot.app.getSharedPreferences("jaynak.car", 0).edit().putInt("icon", i).apply() }
+    }
+
     /** يُستدعى من خدمة موقع المندوب. */
     suspend fun publish(lat: Double, lon: Double, heading: Float, speed: Float) {
         OrdersService.send("api/driver/location", "POST",
             JSONObject().put("lat", lat).put("lon", lon).put("heading", heading.toDouble())
-                .put("speed", speed.toDouble()))
+                .put("speed", speed.toDouble()).put("icon", myIcon))
     }
 
     private fun loc(o: JSONObject) = Loc(
@@ -78,6 +88,7 @@ object LiveTracking {
         heading = if (o.isNull("heading")) null else o.optDouble("heading").toFloat(),
         speed = o.optDouble("speed", 0.0),
         stale = o.optBoolean("stale", false),
+        icon = o.optInt("icon", 0),
     )
 
     private fun driver(o: JSONObject) = FleetDriver(
