@@ -111,7 +111,6 @@ fun NewOrderView(
     val walletBalance = store.currentCustomer?.walletBalance ?: 0.0
     val canSubmit: Boolean = run {
         if (pickup == null || dropoff == null) false
-        else if (recipientName.isBlank() || recipientPhone.filter { it.isDigit() }.length < 8) false
         else if (store.isGuest) true
         else payment == PaymentMethod.cash || (quote?.let { walletBalance >= it.total } ?: false)
     }
@@ -128,6 +127,12 @@ fun NewOrderView(
 
     fun submit() {
         if (pickup == null || dropoff == null) return
+        if (recipientName.isBlank() || recipientPhone.filter { it.isDigit() }.length < 8) {
+            store.toast = com.jaynak.app.core.AppStore.Toast(
+                text = "اكتب اسم المستلم ورقم هاتفه (٨ أرقام) في «تفاصيل المستلم» أسفل الصفحة",
+                kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+            return
+        }
         if (store.isGuest) {
             submitAfterLogin = true
             store.requestLogin(UserRole.customer, "بقيت خطوة واحدة — سجّل دخولك ونثبّت طلبك على أقرب مندوب")
