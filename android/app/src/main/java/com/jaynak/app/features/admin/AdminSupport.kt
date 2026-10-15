@@ -98,12 +98,16 @@ fun AdminSupport() {
 
                 val threads = store.chats.filter { it.threadID.startsWith("support-") }
                     .groupBy { it.threadID }.values
-                    .map { it.sortedBy { m -> m.date } }.sortedByDescending { it.last().date }
+                    .map { it.sortedBy { m -> m.date } }
+                    .sortedWith(compareByDescending<List<com.jaynak.app.core.ChatMessage>> { store.unread(it.last().threadID) > 0 }
+                        .thenByDescending { it.last().date })
                 if (threads.isNotEmpty()) {
                     Text("محادثات الدعم", style = MBType.headline, color = MB.ink, modifier = Modifier.fillMaxWidth())
                     threads.forEach { th ->
                         val last = th.last()
-                        val who = th.lastOrNull { !it.isMine }?.senderName ?: "مستخدم"
+                        val who = th.lastOrNull { !it.isMine && it.kind == "msg" }?.senderName ?: "مستخدم"
+                        val tk = store.supportTickets[last.threadID]
+                        val un = store.unread(last.threadID)
                         Row(Modifier.fillMaxWidth().glassSurface(20.dp, null, 0.08f)
                             .pressable { chat = last.threadID to who }.padding(13.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -111,8 +115,18 @@ fun AdminSupport() {
                                 SFIcon("bubble.left.and.text.bubble.right.fill", size = 14.dp, tint = MB.red)
                             }
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(who, style = MBType.callout, color = MB.ink, maxLines = 1)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    tk?.let {
+                                        MBChip("#${it.no}", tint = if (it.isClosed) MB.ink3 else MB.green, filled = !it.isClosed)
+                                        if (it.isClosed) MBChip("مغلقة", tint = MB.ink3)
+                                        if (it.dept.isNotBlank()) MBChip(it.dept, tint = MB.red, filled = true)
+                                    }
+                                    Text(who, style = MBType.callout, color = MB.ink, maxLines = 1)
+                                }
                                 Text(last.body, style = MBType.micro, color = MB.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            if (un > 0) Box(Modifier.size(26.dp).background(MB.red, CircleShape), contentAlignment = Alignment.Center) {
+                                Text("$un", style = MBType.num(12, FontWeight.Bold), color = Color.White)
                             }
                             SFIcon("chevron.forward", size = 11.dp, tint = MB.ink3)
                         }
