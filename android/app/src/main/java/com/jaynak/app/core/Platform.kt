@@ -181,7 +181,42 @@ object Feedback {
 
     /** صفّارة عالية لطلب سريع جداً. */
     fun urgentOffer() {
-        play(listOf(Tone(1500.0, 0.18), Tone(950.0, 0.18), Tone(1500.0, 0.18), Tone(950.0, 0.18)), 1.0f, alarm = true)
+        scope.launch {
+            runCatching {
+                // صفّارة طوارئ: نغمة متصاعدة ثم هابطة (مثل الإسعاف)، موجة مربّعة عالية
+                val frames = (2.2 * sampleRate).toInt()
+                val pcm = ShortArray(frames)
+                var phase = 0.0
+                for (i in 0 until frames) {
+                    val t = i.toDouble() / sampleRate
+                    val sweep = (t % 1.1) / 1.1
+                    val f = 650.0 + 900.0 * (if (sweep < 0.5) sweep * 2 else (1 - sweep) * 2)
+                    phase += 2 * PI * f / sampleRate
+                    pcm[i] = (if (sin(phase) >= 0) 0.9 * Short.MAX_VALUE else -0.9 * Short.MAX_VALUE).toInt().toShort()
+                }
+                val track = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build(),
+                    )
+                    .setBufferSizeInBytes(pcm.size * 2)
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build()
+                track.write(pcm, 0, pcm.size)
+                track.play()
+                delay(2_350)
+                track.release()
+            }
+        }
         impact(ImpactStyle.heavy)
         notify(NotifyType.error)
     }
@@ -200,8 +235,8 @@ object Feedback {
     fun startOfferAlert(urgent: Boolean = false) {
         stopOfferAlert()
         repeatJob = scope.launch {
-            for (i in 0 until (if (urgent) 10 else 4)) {
-                if (urgent) { urgentOffer(); delay(1_100) } else { newOffer(); delay(2_200) }
+            for (i in 0 until (if (urgent) 6 else 4)) {
+                if (urgent) { urgentOffer(); delay(2_400) } else { newOffer(); delay(2_200) }
                 if (!isActive) return@launch
             }
         }
