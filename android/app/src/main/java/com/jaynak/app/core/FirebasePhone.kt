@@ -19,7 +19,10 @@ import kotlin.coroutines.resumeWithException
 internal object FirebasePhone {
 
     private const val PROJECT_ID = "jayanik"
-    private const val APP_ID = "1:802843878111:android:44e460ddcc879999543f6a"
+    // نسخة التجربة (debug) ونسخة المتجر (release) لكلٍّ منهما تطبيق Firebase خاص
+    private val APP_ID = if (com.jaynak.app.BuildConfig.DEBUG)
+        "1:802843878111:android:44e460ddcc879999543f6a"
+    else "1:802843878111:android:c0797439cc1d721c543f6a"
     private const val API_KEY = "AIzaSyAS1oUQVnpyl7_tBZglFrlvwH56hYFV-Hc"
 
     private var resendToken: PhoneAuthProvider.ForceResendingToken? = null
