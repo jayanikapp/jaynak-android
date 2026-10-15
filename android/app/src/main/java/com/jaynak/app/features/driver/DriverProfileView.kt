@@ -56,6 +56,7 @@ fun DriverProfileView() {
     var showSignOut by remember { mutableStateOf(false) }
     var showDocs by remember { mutableStateOf(false) }
     var showCar by remember { mutableStateOf(false) }
+    var showAvatar by remember { mutableStateOf(false) }
     val d = store.currentDriver
 
     Box(Modifier.fillMaxSize()) {
@@ -106,6 +107,7 @@ fun DriverProfileView() {
 
                     SettingsGroup("الحساب", listOf(
                         SettingsRow("تعديل المستندات والبيانات", "doc.badge.gearshape", action = { showDocs = true }),
+                        SettingsRow("صورة الحساب", "person.crop.circle.fill", detail = "تغيير", action = { showAvatar = true }),
                         SettingsRow("شكل مركبتي على الخريطة", "car.fill",
                             detail = com.jaynak.app.features.shared.CarArt.names[com.jaynak.app.core.LiveTracking.myIcon.coerceIn(0, 4)],
                             action = { showCar = true }),
@@ -125,6 +127,7 @@ fun DriverProfileView() {
     }
 
     if (showCar) VehicleIconSheet { showCar = false }
+    if (showAvatar && d != null) com.jaynak.app.features.shared.AvatarEditSheet("driver", d.name) { showAvatar = false }
     if (showLegal) LegalView(initialAudience = UserRole.driver, onDismiss = { showLegal = false })
     if (showDocs && d != null) {
         JSheet(onDismiss = { showDocs = false }) { Box(Modifier.fillMaxSize()) { DriverOnboardingView(d) } }
