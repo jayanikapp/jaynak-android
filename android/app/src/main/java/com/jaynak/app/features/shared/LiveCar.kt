@@ -47,6 +47,7 @@ data class CarMarker(
     val label: String? = null,
     val selected: Boolean = false,
     val stale: Boolean = false,
+    val icon: Int = 0,
 )
 
 /** دبوس عام (نقطة استلام/تسليم) للخريطة الحيّة. */
