@@ -111,8 +111,15 @@ fun DriverHome(onOpenTrip: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                GlassIconButton("bubble.left.and.text.bubble.right.fill", { showSupport = true },
-                    size = 42.dp, iconSize = 15.dp, tint = MB.red)
+                Box {
+                    GlassIconButton("bubble.left.and.text.bubble.right.fill", { showSupport = true },
+                        size = 42.dp, iconSize = 15.dp, tint = MB.red)
+                    val un = store.unread("support")
+                    if (un > 0) Box(Modifier.align(Alignment.TopEnd).size(20.dp).background(MB.red, CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        Text("$un", style = MBType.num(11, FontWeight.Bold), color = androidx.compose.ui.graphics.Color.White)
+                    }
+                }
             }
 
             if (store.isDriverBlockedByBalance) {
