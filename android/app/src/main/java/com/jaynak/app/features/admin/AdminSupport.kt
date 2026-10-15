@@ -33,6 +33,7 @@ import com.jaynak.app.core.Id
 import com.jaynak.app.core.SupportTicket
 import com.jaynak.app.core.TicketStatus
 import com.jaynak.app.core.UserRole
+import com.jaynak.app.features.shared.ChatView
 import com.jaynak.app.design.BrandBackground
 import com.jaynak.app.design.EmptyStateView
 import com.jaynak.app.design.GlassCard
@@ -66,6 +67,7 @@ fun AdminSupport() {
     val store = LocalStore.current
     var filter by remember { mutableStateOf<TicketStatus?>(null) }
     var selected by remember { mutableStateOf<SupportTicket?>(null) }
+    var chat by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     val base = if (filter == null) store.tickets else store.tickets.filter { it.status == filter }
     val list = base.sortedWith(Comparator { a, b ->
@@ -94,6 +96,29 @@ fun AdminSupport() {
                     TicketStatus.values().forEach { s -> AdminChip(s.title, filter == s) { filter = s } }
                 }
 
+                val threads = store.chats.filter { it.threadID.startsWith("support-") }
+                    .groupBy { it.threadID }.values
+                    .map { it.sortedBy { m -> m.date } }.sortedByDescending { it.last().date }
+                if (threads.isNotEmpty()) {
+                    Text("محادثات الدعم", style = MBType.headline, color = MB.ink, modifier = Modifier.fillMaxWidth())
+                    threads.forEach { th ->
+                        val last = th.last()
+                        val who = th.lastOrNull { !it.isMine }?.senderName ?: "مستخدم"
+                        Row(Modifier.fillMaxWidth().glassSurface(20.dp, null, 0.08f)
+                            .pressable { chat = last.threadID to who }.padding(13.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(40.dp).background(MB.red.copy(alpha = 0.15f), CircleShape), contentAlignment = Alignment.Center) {
+                                SFIcon("bubble.left.and.text.bubble.right.fill", size = 14.dp, tint = MB.red)
+                            }
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(who, style = MBType.callout, color = MB.ink, maxLines = 1)
+                                Text(last.body, style = MBType.micro, color = MB.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            SFIcon("chevron.forward", size = 11.dp, tint = MB.ink3)
+                        }
+                    }
+                }
+
                 if (list.isEmpty()) EmptyStateView("lifepreserver.fill", "لا تذاكر", "كل شيء هادئ الآن")
 
                 list.forEach { t -> TicketRow(t) { selected = t } }
@@ -103,6 +128,7 @@ fun AdminSupport() {
     }
 
     selected?.let { TicketDetailSheet(it.id) { selected = null } }
+    chat?.let { ChatView(it.first, it.second, "", UserRole.admin, moderatable = false, onDismiss = { chat = null }) }
 }
 
 @Composable
