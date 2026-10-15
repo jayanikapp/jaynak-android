@@ -665,6 +665,68 @@ class AppStore {
         } catch (e: Exception) {
             // ننتظر الدورة التالية
         }
+        refreshAdminOrders()
+    }
+
+    /** المالك: يجلب كل الطلبات (حيّة ومكتملة وملغية) من السيرفر ويدمجها محلياً. */
+    suspend fun refreshAdminOrders() {
+        if (!OrdersService.isAvailable) return
+        if (session?.role != UserRole.admin) return
+        try {
+            val j = OrdersService.send("api/admin/orders", "GET", null)
+            val arr = j.optJSONArray("orders") ?: return
+            fun l8(x: String) = x.digitsOnly.takeLast(8)
+            fun pl(o: org.json.JSONObject?): Place =
+                Place(name = (o?.optString("name") ?: "").ifEmpty { o?.optString("zone") ?: "" },
+                    zone = o?.optString("zone") ?: "", coord = Coord(o?.optDouble("lat", 0.0) ?: 0.0, o?.optDouble("lon", 0.0) ?: 0.0))
+            var list = orders
+            for (n in 0 until arr.length()) {
+                val r = arr.getJSONObject(n)
+                val rid = r.optString("id")
+                if (rid.isEmpty()) continue
+                val st = serverStatus(r.optString("status"))
+                val dph = r.optString("driverPhone")
+                val did = if (dph.isEmpty()) null else drivers.firstOrNull { l8(it.phone) == l8(dph) }?.id
+                val cph = r.optString("customerPhone")
+                val cid = customers.firstOrNull { l8(it.phone) == l8(cph) }?.id
+                val pr = r.optJSONObject("price")
+                val price = PriceBreakdown(
+                    km = pr?.optDouble("km", 0.0) ?: 0.0, minutes = pr?.optInt("minutes", 0) ?: 0,
+                    base = pr?.optDouble("base", 0.0) ?: 0.0, distance = pr?.optDouble("distance", 0.0) ?: 0.0,
+                    time = pr?.optDouble("time", 0.0) ?: 0.0, total = pr?.optDouble("total", 0.0) ?: 0.0,
+                    commission = pr?.optDouble("commission", 0.0) ?: 0.0,
+                    driverPayout = pr?.optDouble("driverPayout", 0.0) ?: 0.0)
+                val created = (r.optDouble("createdAt", 0.0) * 1000).toLong()
+                val delivered = if (r.isNull("deliveredAt")) null else (r.optDouble("deliveredAt", 0.0) * 1000).toLong()
+                val ex = list.indexOfFirst { it.remoteID == rid }
+                if (ex >= 0) {
+                    list = list.mapAt(ex) {
+                        it.copy(status = st, driverID = did ?: it.driverID, price = price,
+                            deliveredAt = delivered ?: it.deliveredAt,
+                            cancelledReason = if (st == OrderStatus.cancelled && it.cancelledReason == null) "أُلغي" else it.cancelledReason)
+                    }
+                } else {
+                    list = list + Order(
+                        ref = r.optString("ref").ifEmpty { "—" },
+                        remoteID = rid,
+                        customerID = cid ?: newId(),
+                        driverID = did,
+                        kind = runCatching { OrderKind.valueOf(r.optString("kind")) }.getOrDefault(OrderKind.errand),
+                        pickup = pl(r.optJSONObject("pickup")), dropoff = pl(r.optJSONObject("dropoff")),
+                        note = r.optString("note"), recipientPhone = r.optString("recipientPhone"),
+                        payment = runCatching { PaymentMethod.valueOf(r.optString("payment")) }.getOrDefault(PaymentMethod.cash),
+                        price = price, status = st,
+                        createdAt = if (created > 0) created else nowMs(),
+                        deliveredAt = delivered,
+                        cancelledReason = if (st == OrderStatus.cancelled) "أُلغي" else null,
+                    )
+                }
+            }
+            val sorted = list.sortedByDescending { it.createdAt }
+            if (sorted != orders) { orders = sorted; save() }
+        } catch (e: Exception) {
+            // الدورة القادمة
+        }
     }
 
     // ───────── تغذية المندوب من الخادم ─────────
@@ -872,12 +934,16 @@ class AppStore {
         save()
 
         val remote = orders[i].remoteID
-        if (remote != null && by != UserRole.admin && OrdersService.isAvailable) {
+        if (remote != null && OrdersService.isAvailable) {
             val oid = order.id
             val prev = order.status
             scope.launch {
                 try {
-                    if (by == UserRole.driver) OrdersService.driverCancel(remote) else OrdersService.cancel(remote)
+                    when (by) {
+                        UserRole.driver -> OrdersService.driverCancel(remote)
+                        UserRole.admin -> OrdersService.send("api/admin/cancel", "POST", org.json.JSONObject().put("orderID", remote))
+                        else -> OrdersService.cancel(remote)
+                    }
                 } catch (e: Exception) {
                     val j = orders.indexOfFirst { it.id == oid }
                     if (j >= 0) orders = orders.mapAt(j) { it.copy(status = prev, cancelledReason = null) }
