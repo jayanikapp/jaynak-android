@@ -1,10 +1,7 @@
 package com.jaynak.app.features.shared
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
-import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +10,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,23 +28,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.viewinterop.AndroidView
 import com.jaynak.app.core.Coord
 import com.jaynak.app.core.Feedback
 import com.jaynak.app.core.Geo
-import com.jaynak.app.core.ImpactStyle
 import com.jaynak.app.core.LocationService
 import com.jaynak.app.core.Place
 import com.jaynak.app.design.BrandBackground
-import com.jaynak.app.design.GlassButton
 import com.jaynak.app.design.GlassIconButton
 import com.jaynak.app.design.JSheet
 import com.jaynak.app.design.KeyValueRow
@@ -57,24 +49,22 @@ import com.jaynak.app.design.MBField
 import com.jaynak.app.design.MBType
 import com.jaynak.app.design.PrimaryCTA
 import com.jaynak.app.design.SFIcon
-import com.jaynak.app.design.SegmentedPicker
 import com.jaynak.app.design.clickableNoRipple
 import com.jaynak.app.design.glassChip
 import com.jaynak.app.design.glassSurface
 import com.jaynak.app.design.pressable
 import org.osmdroid.config.Configuration
-import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.MapEventsOverlay
-import org.osmdroid.views.overlay.TilesOverlay
 
-/** مقابل PlacePicker.swift. */
+/**
+ * شاشة اختيار موقع واحدة: خريطة سلسة بدبوس ثابت في المنتصف، وشريط بحث فوقها.
+ * كل ما يكتبه الزبون ينتقل إليه الدبوس (أول نتيجة)، ويمكنه لصق رابط موقع فيتحدّد فوراً، أو تحريك الخريطة بنفسه.
+ */
 @Composable
 fun PlacePicker(
     title: String,
@@ -84,26 +74,68 @@ fun PlacePicker(
     onDismiss: () -> Unit,
 ) {
     val loc = LocationService
-    var query by remember { mutableStateOf("") }
-    var mode by remember { mutableIntStateOf(0) }
-    var droppedCoord by remember { mutableStateOf(Geo.cityCenter) }
-    var droppedName by remember { mutableStateOf("") }
+    val dark = MB.dark
+    val clipboard = LocalClipboardManager.current
 
-    var remote by remember { mutableStateOf<List<Place>>(emptyList()) }
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<Place>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
+    var showList by remember { mutableStateOf(false) }
+    var linkError by remember { mutableStateOf(false) }
+
+    var pinCoord by remember { mutableStateOf(Geo.cityCenter) }
+    var pinName by remember { mutableStateOf("") }
+    var named by remember { mutableStateOf(false) }
+    var resolving by remember { mutableStateOf(false) }
+    var mapRef by remember { mutableStateOf<MapView?>(null) }
+    var tick by remember { mutableIntStateOf(0) }
+    val ignoreUntil = remember { longArrayOf(0L) }
+
+    fun flyTo(c: Coord, zoom: Double) {
+        ignoreUntil[0] = System.currentTimeMillis() + 1100
+        mapRef?.controller?.animateTo(GeoPoint(c.lat, c.lon), zoom, 550L)
+    }
+
+    LaunchedEffect(loc.current) {
+        val new = loc.current ?: return@LaunchedEffect
+        named = false
+        flyTo(Coord(new.lat, new.lon), 17.0)
+    }
+
     LaunchedEffect(query) {
-        remote = emptyList()
-        if (query.trim().length < 3) { searching = false; return@LaunchedEffect }
+        val q = query.trim()
+        linkError = false
+        if (q.length < 2) { results = emptyList(); searching = false; return@LaunchedEffect }
         searching = true
         kotlinx.coroutines.delay(450)
-        remote = com.jaynak.app.core.PlaceSearch.search(query.trim())
+        if (com.jaynak.app.core.MapLinks.looksLikeLink(q)) {
+            val c = com.jaynak.app.core.MapLinks.resolve(q)
+            if (c != null) {
+                results = emptyList(); showList = false; named = false
+                flyTo(c, 17.0)
+            } else linkError = true
+            searching = false
+            return@LaunchedEffect
+        }
+        val local = (saved + Geo.places).filter { it.name.contains(q) || it.zone.contains(q) }.distinctBy { it.name }
+        val remote = com.jaynak.app.core.PlaceSearch.search(q)
+        results = (local + remote).distinctBy { it.name + it.coord.lat }.take(8)
+        results.firstOrNull()?.let { named = true; pinName = it.name; flyTo(it.coord, 15.5) }
+        showList = results.isNotEmpty()
         searching = false
     }
 
-    val results: List<Place> = run {
-        val all = saved + Geo.places.filter { p -> saved.none { it.name == p.name } }
-        val local = if (query.isEmpty()) all else all.filter { it.name.contains(query) || it.zone.contains(query) }
-        local + remote
+    LaunchedEffect(tick, mapRef) {
+        val m = mapRef ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(500)
+        val c = m.mapCenter
+        val coord = Coord(c.latitude, c.longitude)
+        pinCoord = coord
+        if (!named) {
+            resolving = true
+            com.jaynak.app.core.PlaceSearch.reverse(coord)?.let { if (!named) pinName = it }
+            resolving = false
+        }
     }
 
     JSheet(onDismiss = onDismiss) {
@@ -119,218 +151,136 @@ fun PlacePicker(
                     }
                     Spacer(Modifier.size(36.dp))
                 }
-                SegmentedPicker(listOf("بحث", "على الخريطة"), mode, { mode = it },
-                    Modifier.padding(horizontal = 18.dp).padding(top = 10.dp))
 
-                if (mode == 0) {
-                    Column(
-                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        LocateCard(tint) { p ->
-                            Feedback.success(); onPick(p); onDismiss()
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+                            Configuration.getInstance().userAgentValue = "jaynak-android"
+                            MapView(context).apply {
+                                MapTiles.apply(this, dark)
+                                setMultiTouchControls(true)
+                                isHorizontalMapRepetitionEnabled = false
+                                isVerticalMapRepetitionEnabled = false
+                                zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+                                val start = loc.current ?: pinCoord
+                                controller.setZoom(if (loc.current != null) 17.0 else 12.0)
+                                controller.setCenter(GeoPoint(start.lat, start.lon))
+                                addMapListener(object : MapListener {
+                                    override fun onScroll(event: ScrollEvent?): Boolean {
+                                        if (System.currentTimeMillis() > ignoreUntil[0]) { named = false; showList = false }
+                                        tick++; return false
+                                    }
+                                    override fun onZoom(event: ZoomEvent?): Boolean { tick++; return false }
+                                })
+                                mapRef = this
+                            }
+                        },
+                        update = { MapTiles.apply(it, dark) },
+                    )
+                    var pinH by remember { mutableIntStateOf(0) }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Box(Modifier.onSizeChanged { pinH = it.height }.offset { IntOffset(0, -pinH / 2) }) {
+                            MapPin("mappin", tint, "هنا")
                         }
+                    }
 
+                    Column(Modifier.fillMaxWidth().padding(12.dp).align(Alignment.TopCenter),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
-                            Modifier.fillMaxWidth().height(48.dp).glassSurface(16.dp, null, 0.08f).padding(horizontal = 14.dp),
+                            Modifier.fillMaxWidth().height(50.dp).glassSurface(18.dp, null, 0.22f).padding(horizontal = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(9.dp),
                         ) {
                             SFIcon("magnifyingglass", size = 16.dp, tint = MB.ink3)
                             Box(Modifier.weight(1f)) {
-                                if (query.isEmpty()) Text("ابحث باسم المكان أو الولاية", style = MBType.body, color = MB.ink3)
-                                BasicTextField(query, { query = it }, singleLine = true,
+                                if (query.isEmpty()) Text("ابحث عن مكان، أو الصق رابط الموقع", style = MBType.body, color = MB.ink3, maxLines = 1)
+                                BasicTextField(query, { query = it; showList = true }, singleLine = true,
                                     textStyle = MBType.body.copy(color = MB.ink),
                                     cursorBrush = SolidColor(MB.green), modifier = Modifier.fillMaxWidth())
                             }
+                            if (searching) CircularProgressIndicator(Modifier.size(16.dp), color = MB.green, strokeWidth = 2.dp)
+                            else if (query.isNotEmpty())
+                                Box(Modifier.clickableNoRipple { query = ""; results = emptyList(); showList = false }) {
+                                    SFIcon("xmark", size = 13.dp, tint = MB.ink3)
+                                }
+                            else Text("لصق", style = MBType.callout, color = tint,
+                                modifier = Modifier.clickableNoRipple {
+                                    clipboard.getText()?.text?.takeIf { it.isNotBlank() }?.let { query = it.trim() }
+                                })
                         }
 
-                        if (saved.isNotEmpty() && query.isEmpty()) {
-                            Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                                Text("أماكنك المحفوظة", style = MBType.caption, color = MB.ink2)
+                        if (linkError) Text("لم نستطع قراءة موقع من هذا الرابط — جرّب رابط «مشاركة الموقع» أو اكتب اسم المكان",
+                            style = MBType.micro, color = MB.red, modifier = Modifier.glassChip().padding(horizontal = 12.dp, vertical = 7.dp))
+
+                        if (query.isEmpty() && saved.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                saved.take(8).forEach { p ->
+                                    Row(Modifier.glassChip().pressable { named = true; pinName = p.name; flyTo(p.coord, 16.5) }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        SFIcon("star.fill", size = 11.dp, tint = tint)
+                                        Text(p.name, style = MBType.caption, color = MB.ink, maxLines = 1)
+                                    }
+                                }
                             }
                         }
 
-                        if (searching) {
-                            Text("نبحث عن العنوان…", style = MBType.caption, color = MB.ink2)
-                        }
-                        results.forEach { p ->
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .pressable(0.985f) { Feedback.selection(); onPick(p); onDismiss() }
-                                    .glassSurface(18.dp, null, 0.08f).padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Box(Modifier.size(38.dp).background(tint.copy(alpha = 0.16f), CircleShape),
-                                    contentAlignment = Alignment.Center) {
-                                    SFIcon(if (saved.any { it.name == p.name }) "star.fill" else "mappin",
-                                        size = 14.dp, tint = tint)
-                                }
-                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(p.name, style = MBType.headline, color = MB.ink)
-                                    Text(if (p.details.isEmpty()) p.zone else "${p.zone} · ${p.details}",
-                                        style = MBType.caption, color = MB.ink2, maxLines = 2)
+                        if (showList && results.isNotEmpty()) {
+                            Column(Modifier.fillMaxWidth().heightIn(max = 250.dp)
+                                .glassSurface(18.dp, null, 0.3f).verticalScroll(rememberScrollState())) {
+                                results.forEach { p ->
+                                    Row(Modifier.fillMaxWidth()
+                                        .pressable(0.99f) {
+                                            Feedback.selection()
+                                            named = true; pinName = p.name; showList = false
+                                            flyTo(p.coord, 16.5)
+                                        }.padding(horizontal = 14.dp, vertical = 11.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        SFIcon(if (saved.any { it.name == p.name }) "star.fill" else "mappin", size = 14.dp, tint = tint)
+                                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                            Text(p.name, style = MBType.callout, color = MB.ink, maxLines = 1)
+                                            Text(if (p.details.isEmpty()) p.zone else "${p.zone} · ${p.details}",
+                                                style = MBType.micro, color = MB.ink2, maxLines = 1)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                } else {
-                    MapMode(
-                        tint = tint, dropped = droppedCoord,
-                        onDropped = { droppedCoord = it },
-                        droppedName = droppedName, onName = { droppedName = it },
-                        onPick = { onPick(it); onDismiss() },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun LocateCard(tint: Color, onPlace: (Place) -> Unit) {
-    val loc = LocationService
-    val ctx = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            Modifier.fillMaxWidth()
-                .pressable {
-                    val p = loc.currentPlace
-                    if (p != null && !loc.isResolving) onPlace(p) else loc.locate()
-                }
-                .glassSurface(20.dp, tint.copy(alpha = 0.14f)).padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                Modifier.size(44.dp)
-                    .shadow(8.dp, CircleShape, ambientColor = tint.copy(alpha = 0.45f), spotColor = tint.copy(alpha = 0.45f))
-                    .background(Brush.linearGradient(listOf(tint, tint.copy(alpha = 0.55f))), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (loc.isResolving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                else SFIcon("location.fill", size = 17.dp, tint = Color.White)
-            }
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(if (loc.isResolving) "نحدّد موقعك…" else "استخدم موقعي الحالي",
-                    style = MBType.headline, color = MB.ink)
-                Text(loc.currentPlace?.name ?: (if (loc.isDenied) "الإذن مرفوض" else "تحديد دقيق بضغطة واحدة"),
-                    style = MBType.caption, color = if (loc.isDenied) MB.red else MB.ink2, maxLines = 1)
-            }
-            SFIcon("chevron.forward", size = 12.dp, tint = tint)
-        }
-
-        loc.error?.let { err ->
-            Row(
-                Modifier.fillMaxWidth().glassSurface(16.dp, null, 0.06f).padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SFIcon("exclamationmark.triangle.fill", size = 14.dp, tint = MB.red)
-                Text(err, style = MBType.micro, color = MB.ink2, modifier = Modifier.weight(1f))
-                if (loc.isDenied) {
-                    GlassButton("الإعدادات", onClick = {
-                        runCatching {
-                            ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.fromParts("package", ctx.packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    Box(Modifier.fillMaxSize().padding(14.dp)) {
+                        GlassIconButton("location.fill", { named = false; loc.locate() }, tint = tint, prominent = true,
+                            modifier = Modifier.align(Alignment.BottomStart))
+                        Text(if (resolving) "نحدّد العنوان…" else "حرّك الخريطة ليستقر الدبوس على المكان",
+                            style = MBType.micro, color = MB.ink,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                                .glassChip().padding(horizontal = 12.dp, vertical = 7.dp))
+                        loc.error?.let { err ->
+                            Text(err, style = MBType.micro, color = MB.red,
+                                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 44.dp)
+                                    .glassChip().padding(horizontal = 10.dp, vertical = 6.dp))
                         }
-                    }, tint = MB.red, horizontal = 12.dp, vertical = 6.dp)
+                    }
                 }
-            }
-        }
-    }
-}
 
-@Composable
-private fun MapMode(
-    tint: Color,
-    dropped: Coord,
-    onDropped: (Coord) -> Unit,
-    droppedName: String,
-    onName: (String) -> Unit,
-    onPick: (Place) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val loc = LocationService
-    val dark = MB.dark
-    var mapRef by remember { mutableStateOf<MapView?>(null) }
-    var tick by remember { mutableIntStateOf(0) }
-    var edited by remember { mutableStateOf(false) }
-    var resolving by remember { mutableStateOf(false) }
-    var pinH by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(loc.current) {
-        val new = loc.current ?: return@LaunchedEffect
-        mapRef?.controller?.animateTo(GeoPoint(new.lat, new.lon), 17.0, 600L)
-    }
-
-    // بعد توقّف الخريطة: مركزها هو النقطة المختارة + اسم العنوان تلقائياً (دبوس ثابت في المنتصف)
-    LaunchedEffect(tick, mapRef) {
-        val m = mapRef ?: return@LaunchedEffect
-        kotlinx.coroutines.delay(450)
-        val c = m.mapCenter
-        val coord = Coord(c.latitude, c.longitude)
-        onDropped(coord)
-        if (!edited) {
-            resolving = true
-            com.jaynak.app.core.PlaceSearch.reverse(coord)?.let { if (!edited) onName(it) }
-            resolving = false
-        }
-    }
-
-    Column(modifier.fillMaxWidth()) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-                    Configuration.getInstance().userAgentValue = "jaynak-android"
-                    MapView(context).apply {
-                        MapTiles.apply(this, dark)
-                        setMultiTouchControls(true)
-                        zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
-                        val start = loc.current ?: dropped
-                        controller.setZoom(if (loc.current != null) 17.0 else 12.0)
-                        controller.setCenter(GeoPoint(start.lat, start.lon))
-                        addMapListener(object : MapListener {
-                            override fun onScroll(event: ScrollEvent?): Boolean { tick++; return false }
-                            override fun onZoom(event: ZoomEvent?): Boolean { tick++; return false }
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MBField("وصف المكان", pinName, { named = it.isNotEmpty(); pinName = it },
+                        placeholder = "مثال: منزل ١٢، شارع ٣", symbol = "text.alignright")
+                    KeyValueRow("الولاية", Geo.nearestZone(pinCoord), isNumber = false)
+                    PrimaryCTA("تثبيت هذه النقطة", symbol = "mappin.and.ellipse", tint = tint,
+                        onClick = {
+                            Feedback.success()
+                            onPick(Place(name = pinName.ifEmpty { Geo.nearestZone(pinCoord) },
+                                zone = Geo.nearestZone(pinCoord), coord = pinCoord, details = "نقطة على الخريطة"))
+                            onDismiss()
                         })
-                        mapRef = this
-                    }
-                },
-                update = { MapTiles.apply(it, dark) },
-            )
-            // الدبوس ثابت في منتصف الشاشة؛ الخريطة هي التي تتحرك تحته
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Box(Modifier.onSizeChanged { pinH = it.height }.offset { IntOffset(0, -pinH / 2) }) {
-                    MapPin("mappin", tint, "هنا")
                 }
             }
-            Box(Modifier.fillMaxSize().padding(14.dp)) {
-                GlassIconButton("location.fill", { loc.locate() }, tint = tint, prominent = true,
-                    modifier = Modifier.align(Alignment.TopStart))
-                Text(if (resolving) "نحدّد العنوان…" else "حرّك الخريطة ليستقر الدبوس على المكان بدقة",
-                    style = MBType.micro, color = MB.ink,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 0.dp)
-                        .glassChip().padding(horizontal = 12.dp, vertical = 7.dp))
-            }
-        }
-
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            MBField("وصف المكان", droppedName, { edited = it.isNotEmpty(); onName(it) },
-                placeholder = "مثال: منزل ١٢، شارع ٣", symbol = "text.alignright")
-            KeyValueRow("الإحداثيات", "%.5f, %.5f".format(java.util.Locale.US, dropped.lat, dropped.lon))
-            KeyValueRow("الولاية", Geo.nearestZone(dropped), isNumber = false)
-            PrimaryCTA("تثبيت هذه النقطة", symbol = "mappin.and.ellipse", tint = tint,
-                enabled = droppedName.isNotEmpty(),
-                onClick = {
-                    onPick(Place(name = droppedName, zone = Geo.nearestZone(dropped),
-                        coord = dropped, details = "نقطة على الخريطة"))
-                })
         }
     }
 }
