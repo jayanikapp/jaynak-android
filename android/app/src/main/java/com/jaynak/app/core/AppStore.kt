@@ -833,6 +833,15 @@ class AppStore {
             // طلبات لم تعد في التغذية (استلمها غيره أو أُلغيت) تُزال
             val live = (feed.offers + feed.board + feed.actives).map { it.id }.toSet()
             val activeIds = feed.actives.map { it.id }.toSet()
+            // طلب لم يعد ضمن نطاق المندوب يُسحب منه التنبيه (يبقى في القائمة المفتوحة فقط)
+            val offerIds = feed.offers.map { it.id }.toSet()
+            val myCust = session?.customerID
+            orders = orders.map {
+                if (it.remoteID != null && it.status == OrderStatus.searching && it.customerID != myCust &&
+                    it.offeredTo.contains(did) && it.remoteID !in offerIds)
+                    it.copy(offeredTo = it.offeredTo.filter { x -> x != did })
+                else it
+            }
             var released = false
             orders = orders.map {
                 if (it.driverID == did && it.remoteID != null && it.status.isLive && it.remoteID !in activeIds &&
@@ -1209,14 +1218,11 @@ class AppStore {
     val pendingOfferForCurrentDriver: Order?
         get() {
             val did = session?.driverID ?: return null
-            val me = drivers.firstOrNull { it.id == did }
-            val online = me?.presence == DriverPresence.online
             val myCustomer = session?.customerID
+            // التنبيه فقط للطلبات التي اختارها السيرفر لهذا المندوب (ضمن نطاقه وقرب الاستلام)
             return orders.firstOrNull {
-                it.status == OrderStatus.searching && !it.declinedBy.contains(did) && (
-                    it.offeredTo.contains(did) ||
-                        // كل طلب حقيقي مفتوح يظهر للمندوب المتصل فوراً (قبول/رفض)
-                        (online && it.remoteID != null && it.driverID == null && it.customerID != myCustomer))
+                it.status == OrderStatus.searching && !it.declinedBy.contains(did) &&
+                    it.offeredTo.contains(did) && it.customerID != myCustomer
             }
         }
 
