@@ -622,6 +622,7 @@ class AppStore {
                     payment = order.payment.name,
                     note = order.note,
                     recipientPhone = order.recipientPhone,
+                    recipientName = order.recipientName,
                     dispatchMode = if (order.dispatchMode == DispatchMode.open) "open" else "nearby",
                 )
                 val i = orders.indexOfFirst { it.id == id }
@@ -2017,6 +2018,7 @@ class AppStore {
     /** يجلب الرسائل الجديدة من السيرفر وينبّه (صوت + إشعار) عند وصول رسالة. */
     suspend fun refreshChats() {
         if (!OrdersService.isAvailable || session == null) return
+        PhotoApi.pulseMe()
         try {
             val resp = OrdersService.chatList(chatSince)
             val arr = resp.optJSONArray("messages") ?: org.json.JSONArray()
