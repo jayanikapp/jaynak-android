@@ -243,12 +243,14 @@ object OrdersService {
         /** تأتي في تغذية المندوب فقط */
         val km: Double? = null,
         val onPath: Boolean? = null,
+        val dispatchMode: String = "nearby",
     )
 
     data class Feed(
         val offers: List<RemoteOrder> = emptyList(),
         val board: List<RemoteOrder> = emptyList(),
         val active: RemoteOrder? = null,
+        val actives: List<RemoteOrder> = emptyList(),
     )
 
     // ───────── الزبون ─────────
@@ -301,7 +303,15 @@ object OrdersService {
         val active = json.optJSONObject("active")?.let {
             runCatching { Net.json.decodeFromString(RemoteOrder.serializer(), it.toString()) }.getOrNull()
         }
-        return Feed(offers = list("offers"), board = list("board"), active = active)
+        val actives = list("actives").ifEmpty { listOfNotNull(active) }
+        return Feed(offers = list("offers"), board = list("board"), active = active, actives = actives)
+    }
+
+    suspend fun fetchRules(): JSONObject? =
+        send("api/rules", "GET", null).optJSONObject("rules")
+
+    suspend fun saveRules(body: JSONObject) {
+        send("api/admin/rules", "POST", body)
     }
 
     suspend fun setPresence(online: Boolean) {
