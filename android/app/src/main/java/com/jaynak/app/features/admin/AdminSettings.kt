@@ -22,6 +22,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -129,12 +130,28 @@ private fun PriceStepper(title: String, value: Double, step: Double, onChange: (
 }
 
 @Composable
+private fun CountStepper(title: String, value: Int, onChange: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = MBType.callout, color = MB.ink)
+        Spacer(Modifier.weight(1f))
+        Text("$value", style = MBType.num(15, FontWeight.Bold), color = MB.ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            GlassIconButton("minus", { Feedback.selection(); onChange(maxOf(1, value - 1)) },
+                size = 34.dp, iconSize = 12.dp, tint = MB.ink)
+            GlassIconButton("plus", { Feedback.selection(); onChange(minOf(50, value + 1)) },
+                size = 34.dp, iconSize = 12.dp, tint = MB.green)
+        }
+    }
+}
+
+@Composable
 private fun BaseRules() {
     val store = LocalStore.current
     val r = store.rules
     fun set(f: (com.jaynak.app.core.PricingRules) -> com.jaynak.app.core.PricingRules) {
-        store.rules = f(store.rules); store.save()
+        store.rules = f(store.rules); store.save(); store.pushRules()
     }
+    LaunchedEffect(Unit) { store.pullRules(force = true) }
     GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.End) {
             SectionHeader("قواعد السعر", subtitle = "تُطبَّق على كل طلب جديد", symbol = "plus.forwardslash.minus")
@@ -145,6 +162,16 @@ private fun BaseRules() {
             HorizontalDivider(Modifier.alpha(0.25f), color = MB.hairline)
             PriceStepper("عمولة المنصة لكل طلب", r.fixedCommission, 0.010) { v -> set { it.copy(fixedCommission = v) } }
             PriceStepper("أرضية العمولة بعد الرتبة", r.minCommission, 0.010) { v -> set { it.copy(minCommission = v) } }
+            HorizontalDivider(Modifier.alpha(0.25f), color = MB.hairline)
+            SectionHeader("التوصيل السريع 🚨", subtitle = "أسعار مستقلة عن الطلب المفتوح", symbol = "bolt.fill")
+            PriceStepper("السعر الأساسي للسريع", r.expressBaseFare, 0.050) { v -> set { it.copy(expressBaseFare = v) } }
+            PriceStepper("سعر الكيلومتر للسريع", r.expressPerKm, 0.010) { v -> set { it.copy(expressPerKm = v) } }
+            PriceStepper("سعر الدقيقة للسريع", r.expressPerMinute, 0.005) { v -> set { it.copy(expressPerMinute = v) } }
+            HorizontalDivider(Modifier.alpha(0.25f), color = MB.hairline)
+            SectionHeader("الحدود", subtitle = "تُطبَّق من السيرفر على الجميع", symbol = "slider.horizontal.3")
+            CountStepper("أقصى طلبات جارية للزبون", r.maxCustomerOrders) { v -> set { it.copy(maxCustomerOrders = v) } }
+            CountStepper("أقصى طلبات مفتوحة للمندوب", r.maxDriverOpen) { v -> set { it.copy(maxDriverOpen = v) } }
+            CountStepper("أقصى طلبات سريعة للمندوب", r.maxDriverExpress) { v -> set { it.copy(maxDriverExpress = v) } }
             Text("عمولة ثابتة لكل طلب بلا نسبة — يعرف المندوب المخصوم مسبقاً.", style = MBType.micro, color = MB.ink2,
                 modifier = Modifier.fillMaxWidth())
         }
