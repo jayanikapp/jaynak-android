@@ -11,7 +11,7 @@ import kotlin.math.min
 
 @Serializable
 enum class DocumentKind {
-    civilIDFront, civilIDBack, license, ownership, vehicle;
+    civilIDFront, civilIDBack, license, ownership, vehicle, selfie;
 
     val title: String
         get() = when (this) {
@@ -20,6 +20,7 @@ enum class DocumentKind {
             license -> "رخصة القيادة"
             ownership -> "ملكية المركبة"
             vehicle -> "صور المركبة"
+            selfie -> "صورة سيلفي لك"
         }
 
     val hint: String
@@ -29,6 +30,7 @@ enum class DocumentKind {
             license -> "رخصة سارية غير منتهية"
             ownership -> "استمارة الملكية باسمك أو بتوكيل"
             vehicle -> "صورتان على الأقل: الأمام واللوحة"
+            selfie -> "صوّر وجهك بوضوح الآن بالكاميرا، أو اختر صورة من الاستوديو"
         }
 
     val symbol: String
@@ -37,9 +39,10 @@ enum class DocumentKind {
             license -> "creditcard.fill"
             ownership -> "doc.on.doc.fill"
             vehicle -> "car.fill"
+            selfie -> "person.crop.circle.fill"
         }
 
-    val isRequired: Boolean get() = this != civilIDBack
+    val isRequired: Boolean get() = this != civilIDBack && this != selfie
 
     val minimumCount: Int get() = if (this == vehicle) 2 else 1
     val maximumCount: Int get() = if (this == vehicle) 4 else 1
