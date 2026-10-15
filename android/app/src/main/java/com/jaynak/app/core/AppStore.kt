@@ -495,7 +495,6 @@ class AppStore {
             expressBaseFare = d("expressBaseFare", r.expressBaseFare),
             expressPerKm = d("expressPerKm", r.expressPerKm),
             expressPerMinute = d("expressPerMinute", r.expressPerMinute),
-            expressCommissionPerRial = d("expressCommissionPerRial", r.expressCommissionPerRial),
             maxCustomerOrders = n("maxCustomerOrders", r.maxCustomerOrders),
             maxDriverOpen = n("maxDriverOpen", r.maxDriverOpen),
             maxDriverExpress = n("maxDriverExpress", r.maxDriverExpress),
@@ -512,7 +511,7 @@ class AppStore {
             .put("minimumFare", r.minimumFare).put("peakMultiplier", r.peakMultiplier)
             .put("fixedCommission", r.fixedCommission).put("minCommission", r.minCommission)
             .put("expressBaseFare", r.expressBaseFare).put("expressPerKm", r.expressPerKm)
-            .put("expressPerMinute", r.expressPerMinute).put("expressCommissionPerRial", r.expressCommissionPerRial)
+            .put("expressPerMinute", r.expressPerMinute)
             .put("maxCustomerOrders", r.maxCustomerOrders).put("maxDriverOpen", r.maxDriverOpen)
             .put("maxDriverExpress", r.maxDriverExpress)
         scope.launch {
@@ -1522,9 +1521,7 @@ class AppStore {
                 }
                 awardTierPoints(Loyalty.tierPointsPerDelivery, di, "توصيلة")
 
-                val raw = if (o.dispatchMode == DispatchMode.nearby)
-                    min(o.price.total, max(rules.minCommission, o.price.total * rules.expressCommissionPerRial))
-                else PricingEngine.commission(
+                val raw = PricingEngine.commission(
                     o.price.total, rules,
                     fee = drivers[di].commissionFee,
                     rateDiscount = drivers[di].tier.commissionDiscount,
@@ -1911,6 +1908,20 @@ class AppStore {
         }
         Feedback.selection()
         save()
+
+        // يُبلَّغ السيرفر ليصل التغيير للمندوبين والزبون
+        val remote = orders[oi].remoteID
+        if (remote != null && OrdersService.isAvailable) {
+            scope.launch {
+                try {
+                    val b = org.json.JSONObject().put("orderID", remote)
+                    if (driverID != null) b.put("driverID", driverID)
+                    OrdersService.send("api/admin/reassign", "POST", b)
+                } catch (e: Exception) {
+                    toast = Toast(text = "تعذّر تنفيذ إعادة التوزيع في السيرفر — " + (e.message ?: ""), kind = Toast.Kind.error)
+                }
+            }
+        }
     }
 
     // ───────── الدردشة والدعم ─────────
