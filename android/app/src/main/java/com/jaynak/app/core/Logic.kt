@@ -74,14 +74,15 @@ object PricingEngine {
         at: Long = nowMs(),
         promo: PromoCode? = null,
         voucher: Voucher? = null,
+        express: Boolean = false,
     ): PriceBreakdown {
 
         val km = (pickup.coord.km(dropoff.coord) * 10).roundedAway() / 10
         val minutes = Geo.minutes(km)
 
-        val base = rules.baseFare
-        val distance = km * rules.perKm
-        val time = minutes * rules.perMinute
+        val base = if (express) rules.expressBaseFare else rules.baseFare
+        val distance = km * (if (express) rules.expressPerKm else rules.perKm)
+        val time = minutes * (if (express) rules.expressPerMinute else rules.perMinute)
 
         fun zoneSurcharge(name: String): Double =
             rules.zones.firstOrNull { it.name == name && it.isActive }?.surcharge ?: 0.0
