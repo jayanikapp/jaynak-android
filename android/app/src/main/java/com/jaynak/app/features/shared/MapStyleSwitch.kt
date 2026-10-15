@@ -24,7 +24,7 @@ fun MapStyleSwitch(modifier: Modifier = Modifier) {
                 style = MBType.ar(12, FontWeight.SemiBold),
                 color = if (on) MB.green else MB.ink,
                 modifier = Modifier.padding(top = 6.dp).glassChip()
-                    .clickableNoRipple { MapTiles.setStyle(s) }
+                    .clickableNoRipple { MapTiles.choose(s) }
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
