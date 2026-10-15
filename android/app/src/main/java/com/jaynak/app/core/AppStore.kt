@@ -411,6 +411,8 @@ class AppStore {
         session = null
         challenge = null
         chats = emptyList(); chatSince = 0.0; chatPrimed = false
+        supportTickets = emptyMap()
+        runCatching { Boot.app.getSharedPreferences("jaynak.chat", 0).edit().clear().apply() }
 
         AppConfig.sessionToken = null
         Feedback.impact(ImpactStyle.light)
@@ -1957,11 +1959,75 @@ class AppStore {
     private var chatSince = 0.0
     private var chatPrimed = false
 
+    /** حالة تذاكر الدعم (المفتاح: "support" عند العميل/المندوب، و support-<id> عند الإدارة). */
+    var supportTickets by mutableStateOf(mapOf<String, SupportTicketInfo>())
+        private set
+
+    fun ticketFor(thread: String): SupportTicketInfo? = supportTickets[canon(thread)]
+
+    private var readTick by androidx.compose.runtime.mutableIntStateOf(0)
+    private val readPrefs get() = Boot.app.getSharedPreferences("jaynak.chat", 0)
+
+    /** عدد الرسائل غير المقروءة (من الطرف الآخر) في محادثة. */
+    fun unread(thread: String): Int {
+        readTick
+        val t = canon(thread)
+        val seen = readPrefs.getLong("read-$t", 0L)
+        return chats.count { it.threadID == t && !it.isMine && it.kind == "msg" && it.date > seen }
+    }
+
+    /** مجموع غير المقروء في كل محادثات الدعم (للإدارة). */
+    fun unreadSupportTotal(): Int {
+        readTick
+        return chats.filter { it.threadID.startsWith("support") }.map { it.threadID }.distinct().sumOf { unread(it) }
+    }
+
+    fun markRead(thread: String) {
+        val t = canon(thread)
+        val last = chats.filter { it.threadID == t }.maxOfOrNull { it.date } ?: return
+        if (readPrefs.getLong("read-$t", 0L) >= last) return
+        readPrefs.edit().putLong("read-$t", last).apply()
+        readTick++
+    }
+
+    fun closeTicket(thread: String) {
+        val t = canon(thread)
+        scope.launch {
+            try {
+                OrdersService.chatClose(t)
+                refreshChats()
+            } catch (e: Exception) {
+                toast = Toast(text = "تعذّر إغلاق التذكرة — " + (e.message ?: ""), kind = Toast.Kind.error)
+            }
+        }
+    }
+
+    fun transferTicket(thread: String, dept: String) {
+        val t = canon(thread)
+        scope.launch {
+            try {
+                OrdersService.chatTransfer(t, dept.trim())
+                refreshChats()
+            } catch (e: Exception) {
+                toast = Toast(text = "تعذّر التحويل — " + (e.message ?: ""), kind = Toast.Kind.error)
+            }
+        }
+    }
+
     /** يجلب الرسائل الجديدة من السيرفر وينبّه (صوت + إشعار) عند وصول رسالة. */
     suspend fun refreshChats() {
         if (!OrdersService.isAvailable || session == null) return
         try {
-            val arr = OrdersService.chatList(chatSince)
+            val resp = OrdersService.chatList(chatSince)
+            val arr = resp.optJSONArray("messages") ?: org.json.JSONArray()
+            resp.optJSONObject("tickets")?.let { tj ->
+                val m = mutableMapOf<String, SupportTicketInfo>()
+                tj.keys().forEach { k ->
+                    val o = tj.getJSONObject(k)
+                    m[k] = SupportTicketInfo(o.optInt("no"), o.optString("status", "open"), o.optString("dept"))
+                }
+                supportTickets = m
+            }
             val known = chats.map { it.id }.toHashSet()
             val add = mutableListOf<ChatMessage>()
             val adminIds = HashSet<String>()
@@ -1972,17 +2038,19 @@ class AppStore {
                 if (ts > maxTs) maxTs = ts
                 val mid = j.optString("id")
                 if (mid.isEmpty() || mid in known) continue
-                if (j.optString("role") == "admin") adminIds += mid
+                val kind = j.optString("kind", "msg")
+                if (j.optString("role") == "admin" || kind == "transfer") adminIds += mid
                 add += ChatMessage(
                     id = mid, threadID = j.optString("thread"), senderID = j.optString("phone"),
                     senderName = j.optString("name"), isMine = j.optBoolean("mine"),
-                    body = j.optString("body"), date = (ts * 1000).toLong())
+                    body = j.optString("body"), date = (ts * 1000).toLong(),
+                    kind = kind, ticketNo = j.optInt("ticket", 0))
             }
             chatSince = maxTs
             if (add.isNotEmpty()) {
                 chats = chats + add
                 save()
-                val incoming = add.filter { !it.isMine }
+                val incoming = add.filter { !it.isMine && it.kind != "close" }
                 if (chatPrimed && incoming.isNotEmpty()) {
                     val m = incoming.last()
                     val fromAdmin = m.id in adminIds
