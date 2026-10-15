@@ -506,7 +506,7 @@ class AppStore {
     fun pushRules() {
         if (!OrdersService.isAvailable) return
         val r = rules
-        val b = JSONObject()
+        val b = org.json.JSONObject()
             .put("baseFare", r.baseFare).put("perKm", r.perKm).put("perMinute", r.perMinute)
             .put("minimumFare", r.minimumFare).put("peakMultiplier", r.peakMultiplier)
             .put("fixedCommission", r.fixedCommission).put("minCommission", r.minCommission)
