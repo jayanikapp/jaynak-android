@@ -111,6 +111,7 @@ fun NewOrderView(
     val walletBalance = store.currentCustomer?.walletBalance ?: 0.0
     val canSubmit: Boolean = run {
         if (pickup == null || dropoff == null) false
+        else if (recipientName.isBlank() || recipientPhone.filter { it.isDigit() }.length < 8) false
         else if (store.isGuest) true
         else payment == PaymentMethod.cash || (quote?.let { walletBalance >= it.total } ?: false)
     }
@@ -238,8 +239,8 @@ fun NewOrderView(
                 // تفاصيل المستلم
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionHeader("تفاصيل المستلم", symbol = "person.fill")
-                    MBField("اسم المستلم", recipientName, { recipientName = it }, placeholder = "من يستلم الطلب؟", symbol = "person")
-                    MBField("رقم المستلم", recipientPhone, { recipientPhone = it }, placeholder = "XXXXXXXX",
+                    MBField("اسم المستلم (مطلوب)", recipientName, { recipientName = it }, placeholder = "اكتب الاسم أولاً ليعرفه المندوب", symbol = "person")
+                    MBField("رقم هاتف المستلم (مطلوب)", recipientPhone, { recipientPhone = it }, placeholder = "XXXXXXXX",
                         symbol = "phone", keyboard = KeyboardType.Number, isRTLText = false)
                     MBField("ملاحظات للمندوب", note, { note = it }, placeholder = "مثال: الدور الثالث، مكتب ٧", symbol = "text.alignright")
                 }
