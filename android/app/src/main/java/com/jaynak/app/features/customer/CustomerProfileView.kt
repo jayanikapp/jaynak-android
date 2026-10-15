@@ -55,6 +55,7 @@ fun CustomerProfileView() {
     val store = LocalStore.current
     var showLegal by remember { mutableStateOf(false) }
     var showSupport by remember { mutableStateOf(false) }
+    var showAvatar by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
     var showSignOut by remember { mutableStateOf(false) }
     val c = store.currentCustomer
@@ -96,6 +97,7 @@ fun CustomerProfileView() {
                     }
                 }
                 SettingsGroup("الحساب", listOf(
+                    SettingsRow("صورة الحساب", "person.crop.circle.fill", detail = "تغيير", action = { showAvatar = true }),
                     SettingsRow("الأماكن المحفوظة", "star.fill", detail = "${c?.savedPlaces?.size ?: 0}"),
                     SettingsRow("الإشعارات", "bell.fill", detail = "مفعّلة"),
                     SettingsRow("اللغة", "globe", detail = "العربية"),
@@ -125,6 +127,7 @@ fun CustomerProfileView() {
         }
     }
 
+    if (showAvatar && c != null) com.jaynak.app.features.shared.AvatarEditSheet("customer", c.name) { showAvatar = false }
     if (showLegal) LegalView(initialAudience = null, onDismiss = { showLegal = false })
     if (showSupport) ChatView("support-${c?.id ?: "x"}", "الدعم الفني", "", UserRole.customer,
         moderatable = false, onDismiss = { showSupport = false })
