@@ -370,8 +370,8 @@ fun PhoneEntryView(
     val focus = remember { FocusRequester() }
 
     val complete = digits.length == AppConfig.nationalNumberLength
-    val needsName = role == UserRole.driver && mode == AuthMode.signUp
-    val valid = complete && agreed && (!needsName || name.length >= 3)
+    val needsName = mode == AuthMode.signUp
+    val valid = complete && agreed && (!needsName || name.trim().length >= (if (role == UserRole.driver) 3 else 2))
 
     var tick by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(1000); tick++ } }
@@ -460,7 +460,7 @@ fun PhoneEntryView(
 
             if (needsName) {
                 MBField("الاسم الكامل", name, { name = it }, Modifier.padding(horizontal = 20.dp),
-                    placeholder = "كما في البطاقة المدنية", symbol = "person.fill")
+                    placeholder = if (role == UserRole.driver) "كما في البطاقة المدنية" else "اكتب اسمك ليعرفك المندوب", symbol = "person.fill")
             }
 
             // ملاحظة واتساب
