@@ -164,6 +164,7 @@ fun DriverHome(onOpenTrip: () -> Unit) {
                     driver = d?.coord, driverName = d?.name,
                     nearby = store.drivers.filter { it.id != d?.id && it.presence == DriverPresence.online }.map { it.coord },
                     showRoute = false, interactive = false,
+                    driverIcon = com.jaynak.app.core.LiveTracking.myIcon,
                 )
                 Row(
                     Modifier.align(Alignment.TopEnd).padding(12.dp)
