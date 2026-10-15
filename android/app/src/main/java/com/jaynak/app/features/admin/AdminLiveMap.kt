@@ -169,10 +169,10 @@ fun AdminLiveMap() {
     val cars = buildList {
         rows.forEach { r ->
             val loc = r.driver?.loc ?: return@forEach
-            add(CarMarker(r.id, loc.coord, loc.heading, statusTint(r.status), r.ref, r.id == sel?.id, loc.stale))
+            add(CarMarker(r.id, loc.coord, loc.heading, statusTint(r.status), r.ref, r.id == sel?.id, loc.stale, loc.icon))
         }
         if (q.isEmpty()) fleet.idle.forEach { d ->
-            d.loc?.let { add(CarMarker("d-${d.id}", it.coord, it.heading, MB.ink3, d.name, false, it.stale)) }
+            d.loc?.let { add(CarMarker("d-${d.id}", it.coord, it.heading, MB.ink3, d.name, false, it.stale, it.icon)) }
         }
     }
     val pins = sel?.let {
