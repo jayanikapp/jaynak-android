@@ -1,6 +1,7 @@
 package com.jaynak.app.features.driver
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.jaynak.app.core.AppConfig
+import com.jaynak.app.core.DispatchMode
 import com.jaynak.app.core.Feedback
 import com.jaynak.app.core.Order
 import com.jaynak.app.core.PaymentMethod
@@ -67,7 +69,7 @@ fun DriverOfferSheet(order: Order) {
     var remaining by remember(order.id) { mutableDoubleStateOf(AppConfig.offerTimeoutSeconds) }
 
     DisposableEffect(order.id) {
-        Feedback.startOfferAlert()
+        Feedback.startOfferAlert(urgent = order.dispatchMode == DispatchMode.nearby)
         onDispose { Feedback.stopOfferAlert() }
     }
     LaunchedEffect(order.id) {
@@ -91,6 +93,9 @@ fun DriverOfferSheet(order: Order) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             Box(Modifier.fillMaxWidth().height(520.dp).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))) {
                 BrandBackground(intensity = 1.2f)
+                if (order.dispatchMode == DispatchMode.nearby) {
+                    Box(Modifier.fillMaxSize().background(MB.red.copy(alpha = 0.22f)))
+                }
                 Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
@@ -114,7 +119,9 @@ fun DriverOfferSheet(order: Order) {
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("طلب جديد", style = MBType.title, color = MB.ink)
+                        if (order.dispatchMode == DispatchMode.nearby) {
+                            Text("🚨 طلب سريع جداً 🚨", style = MBType.title, color = MB.red)
+                        } else Text("طلب جديد", style = MBType.title, color = MB.ink)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MBChip(order.kind.title, symbol = order.kind.symbol, filled = true)
                             MBChip(order.payment.title, symbol = order.payment.symbol,
