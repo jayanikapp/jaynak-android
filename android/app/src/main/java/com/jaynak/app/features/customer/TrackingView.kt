@@ -258,7 +258,7 @@ private fun Panel(o: Order, driver: Driver?, distanceKm: Double?, etaMin: Int?, 
         OrderProgressTrack(o.status.step, Modifier.fillMaxWidth())
 
         if (o.status == OrderStatus.searching) SearchingPanel(o)
-        else if (driver != null) DriverBlock(driver, onChat)
+        else if (driver != null) DriverBlock(driver, onChat, com.jaynak.app.design.LocalStore.current.unread("order-${o.id}"))
 
         Box(Modifier.fillMaxWidth().height(1.dp).background(MB.hairline.copy(alpha = 0.3f)))
 
@@ -274,7 +274,7 @@ private fun Panel(o: Order, driver: Driver?, distanceKm: Double?, etaMin: Int?, 
 }
 
 @Composable
-private fun DriverBlock(d: Driver, onChat: () -> Unit) {
+private fun DriverBlock(d: Driver, onChat: () -> Unit, unread: Int = 0) {
     val ctx = LocalContext.current
     Column(
         Modifier.fillMaxWidth().glassSurface(20.dp, null, 0.10f).padding(13.dp),
@@ -296,8 +296,11 @@ private fun DriverBlock(d: Driver, onChat: () -> Unit) {
                 symbol = "phone.fill", vertical = 11.dp)
             GlassButton("واتساب", { NavigationLauncher.whatsapp(ctx, d.phone) }, Modifier.weight(1f), tint = MB.green,
                 symbol = "message.fill", vertical = 11.dp)
-            GlassButton("محادثة", onChat, Modifier.weight(1f), tint = MB.ink,
-                symbol = "bubble.left.fill", vertical = 11.dp)
+            Box(Modifier.weight(1f)) {
+                GlassButton("محادثة", onChat, Modifier.fillMaxWidth(), tint = MB.ink,
+                    symbol = "bubble.left.fill", vertical = 11.dp)
+                com.jaynak.app.design.UnreadBadge(unread, Modifier.align(Alignment.TopEnd))
+            }
         }
     }
 }
