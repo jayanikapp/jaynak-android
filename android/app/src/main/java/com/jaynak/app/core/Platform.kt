@@ -144,7 +144,7 @@ object Feedback {
         return out
     }
 
-    private fun play(tones: List<Tone>, gain: Float = 0.5f) {
+    private fun play(tones: List<Tone>, gain: Float = 0.5f, alarm: Boolean = false) {
         scope.launch {
             runCatching {
                 val pcm = buffer(tones, gain)
@@ -152,7 +152,7 @@ object Feedback {
                 val track = AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                            .setUsage(if (alarm) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION_EVENT)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build(),
                     )
@@ -179,6 +179,13 @@ object Feedback {
         impact(ImpactStyle.heavy)
     }
 
+    /** صفّارة عالية لطلب سريع جداً. */
+    fun urgentOffer() {
+        play(listOf(Tone(1500.0, 0.18), Tone(950.0, 0.18), Tone(1500.0, 0.18), Tone(950.0, 0.18)), 1.0f, alarm = true)
+        impact(ImpactStyle.heavy)
+        notify(NotifyType.error)
+    }
+
     fun success() {
         play(listOf(Tone(659.3, 0.12), Tone(987.8, 0.22)), 0.45f)
         notify(NotifyType.success)
@@ -190,12 +197,11 @@ object Feedback {
     }
 
     /** تنبيه متكرّر لعرض طلب — يتوقف عند القبول أو الرفض. */
-    fun startOfferAlert() {
+    fun startOfferAlert(urgent: Boolean = false) {
         stopOfferAlert()
         repeatJob = scope.launch {
-            for (i in 0 until 4) {
-                newOffer()
-                delay(2_200)
+            for (i in 0 until (if (urgent) 10 else 4)) {
+                if (urgent) { urgentOffer(); delay(1_100) } else { newOffer(); delay(2_200) }
                 if (!isActive) return@launch
             }
         }
