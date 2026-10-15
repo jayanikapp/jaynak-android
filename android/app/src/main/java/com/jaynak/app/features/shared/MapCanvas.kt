@@ -93,6 +93,7 @@ fun MapCanvas(
     fitKey: Any? = null,
     followDriver: Boolean = true,
     driverStale: Boolean = false,
+    driverIcon: Int = 0,
 ) {
     val ctx = LocalContext.current
     val dark = MB.dark
@@ -132,8 +133,8 @@ fun MapCanvas(
     }
     val overlayDots: List<MapPinOverlay.Dot> = nearby.map { MapPinOverlay.Dot(it.lat, it.lon) }
     val overlayCars: List<MapCarOverlay.Car> = buildList {
-        driver?.let { dc -> add(MapCarOverlay.Car("driver", dc.lat, dc.lon, driverHeading, 0xFFE5303B.toInt(), null, false, driverStale)) }
-        cars.forEach { add(MapCarOverlay.Car(it.id, it.coord.lat, it.coord.lon, it.heading, it.tint.toArgb(), it.label, it.selected, it.stale)) }
+        driver?.let { dc -> add(MapCarOverlay.Car("driver", dc.lat, dc.lon, driverHeading, 0xFFE5303B.toInt(), null, false, driverStale, driverIcon)) }
+        cars.forEach { add(MapCarOverlay.Car(it.id, it.coord.lat, it.coord.lon, it.heading, it.tint.toArgb(), it.label, it.selected, it.stale, it.icon)) }
     }
 
     fun fitTo(pts: List<Coord>, factor: Double, animate: Boolean) {
