@@ -239,7 +239,8 @@ fun ActiveTripCard(order: Order) {
     }
     var showConfirm by remember { mutableStateOf(false) }
 
-    GlassCard(Modifier.fillMaxWidth(), tint = MB.red.copy(alpha = 0.16f)) {
+    GlassCard(Modifier.fillMaxWidth(),
+        tint = MB.red.copy(alpha = if (order.dispatchMode == com.jaynak.app.core.DispatchMode.nearby) 0.34f else 0.16f)) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.End) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 StatusBadge(order.status)
@@ -247,6 +248,8 @@ fun ActiveTripCard(order: Order) {
                 Text(order.price.driverPayout.money, style = MBType.num(17, FontWeight.Bold), color = MB.green)
             }
 
+            if (order.dispatchMode == com.jaynak.app.core.DispatchMode.nearby)
+                Text("🚨 طلب سريع جداً", style = MBType.callout, color = MB.red)
             OrderProgressTrack(order.status.step, Modifier.fillMaxWidth())
 
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
