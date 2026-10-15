@@ -48,7 +48,7 @@ object MapTiles {
             Boot.app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("style", MapStyle.clear.name)!!)
     }.getOrDefault(MapStyle.clear)
 
-    fun setStyle(s: MapStyle) {
+    fun choose(s: MapStyle) {
         style = s
         runCatching { Boot.app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("style", s.name).apply() }
     }
