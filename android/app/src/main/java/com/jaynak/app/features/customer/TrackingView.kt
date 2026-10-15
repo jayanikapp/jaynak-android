@@ -142,7 +142,7 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
             MapCanvas(pickup = order.pickup, dropoff = order.dropoff,
                 driver = carCoord, driverName = driver?.name,
                 driverHeading = liveLoc?.heading, routePath = routeLine,
-                driverStale = liveLoc?.stale == true)
+                driverStale = liveLoc?.stale == true, driverIcon = liveLoc?.icon ?: 0)
 
             // الشريط العلوي
             Row(
