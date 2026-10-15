@@ -106,7 +106,7 @@ fun NewOrderView(
     val quote: PriceBreakdown? = run {
         val p = pickup; val d = dropoff
         if (p == null || d == null) null
-        else store.quote(p, d, kind, promoText, voucher)
+        else store.quote(p, d, kind, promoText, voucher, express = dispatchMode == DispatchMode.nearby)
     }
     val walletBalance = store.currentCustomer?.walletBalance ?: 0.0
     val canSubmit: Boolean = run {
