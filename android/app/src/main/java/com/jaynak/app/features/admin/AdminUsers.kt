@@ -244,6 +244,7 @@ fun DriverAdminSheet(driverID: Id, onDismiss: () -> Unit) {
                                 DocRow("رخصة القيادة", d.docs.licenseNumber, d.docs.licenseImage, DocumentKind.license) { viewingKind = it }
                                 DocRow("ملكية المركبة", d.vehicle.ownershipNumber, d.docs.ownershipImage, DocumentKind.ownership) { viewingKind = it }
                                 DocRow("صور السيارة", "${d.docs.vehicleImages} صور", d.docs.vehicleImages >= 2, DocumentKind.vehicle) { viewingKind = it }
+                                DocRow("السيلفي", "", d.docs.has(DocumentKind.selfie), DocumentKind.selfie) { viewingKind = it }
                                 KeyValueRow("انتهاء الرخصة", Fmt.dayMonthYear(d.docs.licenseExpiry), isNumber = false)
                             }
                         }
