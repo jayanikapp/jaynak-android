@@ -472,10 +472,54 @@ class AppStore {
     fun quote(
         pickup: Place, dropoff: Place, kind: OrderKind,
         promoText: String = "", voucher: Voucher? = null,
+        express: Boolean = false,
     ): PriceBreakdown = PricingEngine.quote(
         pickup, dropoff, kind, rules,
-        promo = promo(promoText, session?.customerID), voucher = voucher,
+        promo = promo(promoText, session?.customerID), voucher = voucher, express = express,
     )
+
+    /** يسحب قواعد الإدارة (الأسعار والحدود) من السيرفر — غير الإدارة فقط. */
+    suspend fun pullRules(force: Boolean = false) {
+        if (!OrdersService.isAvailable) return
+        if (!force && session?.role == UserRole.admin) return
+        val j = runCatching { OrdersService.fetchRules() }.getOrNull() ?: return
+        fun d(k: String, cur: Double) = if (j.has(k)) j.optDouble(k, cur) else cur
+        fun n(k: String, cur: Int) = if (j.has(k)) j.optInt(k, cur) else cur
+        val r = rules
+        val nr = r.copy(
+            baseFare = d("baseFare", r.baseFare), perKm = d("perKm", r.perKm),
+            perMinute = d("perMinute", r.perMinute), minimumFare = d("minimumFare", r.minimumFare),
+            peakMultiplier = d("peakMultiplier", r.peakMultiplier),
+            fixedCommission = d("fixedCommission", r.fixedCommission),
+            minCommission = d("minCommission", r.minCommission),
+            expressBaseFare = d("expressBaseFare", r.expressBaseFare),
+            expressPerKm = d("expressPerKm", r.expressPerKm),
+            expressPerMinute = d("expressPerMinute", r.expressPerMinute),
+            maxCustomerOrders = n("maxCustomerOrders", r.maxCustomerOrders),
+            maxDriverOpen = n("maxDriverOpen", r.maxDriverOpen),
+            maxDriverExpress = n("maxDriverExpress", r.maxDriverExpress),
+        )
+        if (nr != r) { rules = nr; save() }
+    }
+
+    /** الإدارة: يرفع القواعد الحالية للسيرفر ليعتمدها الجميع. */
+    fun pushRules() {
+        if (!OrdersService.isAvailable) return
+        val r = rules
+        val b = JSONObject()
+            .put("baseFare", r.baseFare).put("perKm", r.perKm).put("perMinute", r.perMinute)
+            .put("minimumFare", r.minimumFare).put("peakMultiplier", r.peakMultiplier)
+            .put("fixedCommission", r.fixedCommission).put("minCommission", r.minCommission)
+            .put("expressBaseFare", r.expressBaseFare).put("expressPerKm", r.expressPerKm)
+            .put("expressPerMinute", r.expressPerMinute)
+            .put("maxCustomerOrders", r.maxCustomerOrders).put("maxDriverOpen", r.maxDriverOpen)
+            .put("maxDriverExpress", r.maxDriverExpress)
+        scope.launch {
+            try { OrdersService.saveRules(b) } catch (e: Exception) {
+                toast = Toast(text = "تعذّر حفظ الأسعار في السيرفر — " + (e.message ?: ""), kind = Toast.Kind.error)
+            }
+        }
+    }
 
     val liveOrderForCurrentCustomer: Order?
         get() {
@@ -494,7 +538,15 @@ class AppStore {
         val ci = customers.indexOfFirst { it.id == cid }
         if (ci < 0) return null
 
-        val price = quote(pickup, dropoff, kind, promoText, voucher)
+        val liveCount = orders.count { it.customerID == cid && it.status.isLive }
+        if (liveCount >= rules.maxCustomerOrders) {
+            toast = Toast(text = "وصلت للحد الأقصى من الطلبات الجارية (${rules.maxCustomerOrders}) — انتظر اكتمال أحدها",
+                kind = Toast.Kind.error)
+            Feedback.warning()
+            return null
+        }
+
+        val price = quote(pickup, dropoff, kind, promoText, voucher, express = dispatchMode == DispatchMode.nearby)
 
         if (payment == PaymentMethod.wallet && customers[ci].walletBalance < price.total) {
             toast = Toast(text = "رصيد المحفظة لا يكفي — عبّئ المحفظة أو اختر الكاش",
@@ -583,6 +635,11 @@ class AppStore {
                     }
                     save()
                 }
+            } catch (e: OrdersService.Failure.Server) {
+                // السيرفر رفضه (مثلاً تجاوز حد الطلبات) — لا نُبقيه محلياً
+                orders = orders.filterNot { it.id == id }
+                save()
+                toast = Toast(text = e.message ?: "رفض السيرفر الطلب", kind = Toast.Kind.error)
             } catch (e: Exception) {
                 toast = Toast(
                     text = "الطلب أُنشئ محلياً، لكن لم يصل للسيرفر — " + (e.message ?: ""),
@@ -736,6 +793,7 @@ class AppStore {
         if (!OrdersService.isAvailable) return
         val did = session?.driverID ?: return
         syncProfile()
+        pullRules()
         try {
             // اعتماد الإدارة يصل من السيرفر
             DirectorySync.myApproval()?.let { a ->
@@ -766,14 +824,14 @@ class AppStore {
                 com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, it.presence != DriverPresence.offline)
             }
             for (remote in feed.offers) merge(remote, did)
-            feed.active?.let { merge(it, did) }
+            for (a in feed.actives) merge(a, did)
             for (remote in feed.board) merge(remote, did, asBoard = true)
             // طلبات لم تعد في التغذية (استلمها غيره أو أُلغيت) تُزال
-            val live = (feed.offers + feed.board + listOfNotNull(feed.active)).map { it.id }.toSet()
-            val activeId = feed.active?.id
+            val live = (feed.offers + feed.board + feed.actives).map { it.id }.toSet()
+            val activeIds = feed.actives.map { it.id }.toSet()
             var released = false
             orders = orders.map {
-                if (it.driverID == did && it.remoteID != null && it.status.isLive && it.remoteID != activeId &&
+                if (it.driverID == did && it.remoteID != null && it.status.isLive && it.remoteID !in activeIds &&
                     nowMs() - (it.acceptedAt ?: 0L) > 20000) {
                     released = true
                     it.copy(status = OrderStatus.cancelled, cancelledReason = "أُلغي")
@@ -809,6 +867,7 @@ class AppStore {
     suspend fun refreshMyOrders() {
         if (!OrdersService.isAvailable) return
         val cid = session?.customerID ?: return
+        pullRules()
         try {
             val mine = OrdersService.mine()
             var changed = false
@@ -891,6 +950,7 @@ class AppStore {
             payment = runCatching { PaymentMethod.valueOf(remote.payment) }.getOrDefault(PaymentMethod.cash),
             price = price,
             remoteID = remote.id,
+            dispatchMode = if (remote.dispatchMode == "open") DispatchMode.open else DispatchMode.nearby,
             status = status,
             offeredTo = listOf(did),
             offeredAt = mapOf(did to nowMs()),
@@ -1155,6 +1215,13 @@ class AppStore {
             }
         }
 
+    val activeOrdersForCurrentDriver: List<Order>
+        get() {
+            val did = session?.driverID ?: return emptyList()
+            return orders.filter { it.driverID == did && it.status.isLive }
+                .sortedBy { it.acceptedAt ?: it.createdAt }
+        }
+
     val activeOrderForCurrentDriver: Order?
         get() {
             val did = session?.driverID ?: return null
@@ -1238,6 +1305,16 @@ class AppStore {
             toast = Toast(text = "سبقك مندوب آخر لهذا الطلب", kind = Toast.Kind.error)
             Feedback.warning()
             return false
+        }
+        val mine = orders.filter { it.driverID == did && it.status.isLive }
+        if (orders[oi].dispatchMode == DispatchMode.nearby) {
+            if (mine.count { it.dispatchMode == DispatchMode.nearby } >= rules.maxDriverExpress) {
+                toast = Toast(text = "وصلت للحد الأقصى من الطلبات السريعة (${rules.maxDriverExpress})", kind = Toast.Kind.error)
+                Feedback.warning(); return false
+            }
+        } else if (mine.count { it.dispatchMode == DispatchMode.open } >= rules.maxDriverOpen) {
+            toast = Toast(text = "وصلت للحد الأقصى من الطلبات المفتوحة (${rules.maxDriverOpen})", kind = Toast.Kind.error)
+            Feedback.warning(); return false
         }
         val i = drivers.indexOfFirst { it.id == did }
         if (i >= 0) drivers = drivers.mapAt(i) { it.copy(offersReceived = it.offersReceived + 1) }
@@ -1341,7 +1418,7 @@ class AppStore {
                 acceptedAt = nowMs(), driverCoord = drivers[di].coord)
         }
         drivers = drivers.mapAt(di) {
-            it.copy(presence = DriverPresence.busy, offersAccepted = it.offersAccepted + 1)
+            it.copy(offersAccepted = it.offersAccepted + 1)
         }
         routes[orders[oi].id] = Geo.route(drivers[di].coord, orders[oi].pickup.coord)
         progress[orders[oi].id] = 0.0
@@ -1814,7 +1891,6 @@ class AppStore {
                 it.copy(driverID = driverID, status = OrderStatus.pickingUp,
                     driverCoord = drivers[ndi].coord)
             }
-            drivers = drivers.mapAt(ndi) { it.copy(presence = DriverPresence.busy) }
             routes[orders[oi].id] = Geo.route(drivers[ndi].coord, orders[oi].pickup.coord)
             progress[orders[oi].id] = 0.0
             toast = Toast(text = "أُعيد توزيع ${orders[oi].ref} على ${drivers[ndi].name}",
