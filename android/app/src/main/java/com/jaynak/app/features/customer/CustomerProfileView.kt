@@ -103,7 +103,7 @@ fun CustomerProfileView() {
             }
 
             SettingsGroup("المساعدة", listOf(
-                SettingsRow("الدعم الفني", "bubble.left.and.text.bubble.right.fill", action = {
+                SettingsRow("الدعم الفني", "bubble.left.and.text.bubble.right.fill", badge = store.unread("support"), action = {
                     if (store.isGuest) store.requestLogin(reason = "الدخول يربط محادثتك بطلباتك حتى يساعدك الفريق أسرع")
                     else showSupport = true
                 }),
@@ -140,6 +140,7 @@ data class SettingsRow(
     val detail: String? = null,
     val destructive: Boolean = false,
     val action: (() -> Unit)? = null,
+    val badge: Int = 0,
 )
 
 @Composable
@@ -164,6 +165,12 @@ fun SettingsGroup(title: String, rows: List<SettingsRow>, tint: Color = Color.Un
                     Text(row.title, style = MBType.body, color = if (row.destructive) MB.red else MB.ink,
                         modifier = Modifier.weight(1f))
                     row.detail?.let { Text(it, style = MBType.caption, color = MB.ink2) }
+                    if (row.badge > 0) Box(
+                        Modifier.width(24.dp).height(24.dp)
+                            .background(MB.red, androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        Text("${row.badge}", style = MBType.num(12, FontWeight.Bold), color = Color.White)
+                    }
                     if (row.action != null) SFIcon("chevron.forward", size = 11.dp, tint = MB.ink3)
                 }
                 if (i < rows.size - 1) {
