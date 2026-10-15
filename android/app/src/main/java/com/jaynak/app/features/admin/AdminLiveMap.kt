@@ -53,6 +53,17 @@ import com.jaynak.app.features.shared.MapCanvas
 import com.jaynak.app.features.shared.NavigationLauncher
 import com.jaynak.app.features.shared.PinMarker
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import com.jaynak.app.features.shared.MapStyleSwitch
+import kotlin.math.roundToInt
 
 private val BLUE = Color(0xFF007AFF)
 private val ORANGE = Color(0xFFFF9500)
@@ -219,16 +230,21 @@ fun AdminLiveMap() {
             }
         }
 
+        // تبديل شكل الخريطة
+        MapStyleSwitch(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).padding(top = 40.dp))
+
         // الجزء السفلي (فوق شريط التبويبات)
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 150.dp)) {
             if (sel != null) {
-                DetailCard(sel, km, eta, reply ?: "", copied,
-                    onCopy = {
-                        (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                            .setPrimaryClip(ClipData.newPlainText("reply", reply ?: ""))
-                        copied = true
-                    },
-                    onClose = { selectedId = null; query = ""; copied = false })
+                DragPanel(key = sel.id) {
+                    DetailCard(sel, km, eta, reply ?: "", copied,
+                        onCopy = {
+                            (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                                .setPrimaryClip(ClipData.newPlainText("reply", reply ?: ""))
+                            copied = true
+                        },
+                        onClose = { selectedId = null; query = ""; copied = false })
+                }
             } else if (rows.isNotEmpty()) {
                 ProminentButton("قائمة الطلبات (" + rows.size + ")", { showList = true },
                     Modifier.padding(horizontal = 14.dp).fillMaxWidth(), symbol = "list.bullet.rectangle", vertical = 13.dp)
@@ -236,6 +252,40 @@ fun AdminLiveMap() {
         }
     }
     if (showList) OrderListSheet(rows, { id -> selectedId = id; copied = false; showList = false }, { showList = false })
+}
+
+/** لوحة تُسحب للأسفل لإظهار الخريطة بوضوح وتُسحب للأعلى لإظهار التفاصيل؛ النقر على المقبض يبدّل بينهما. */
+@Composable
+private fun DragPanel(key: Any, content: @Composable () -> Unit) {
+    var panelH by remember { mutableIntStateOf(0) }
+    var offset by remember(key) { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val peek = with(density) { 96.dp.toPx() }                 // الجزء الظاهر عند الطي
+    val maxOff = (panelH - peek).coerceAtLeast(0f)
+    val target = offset.coerceIn(0f, maxOff)
+    val shown by animateFloatAsState(
+        target, label = "panel",
+        animationSpec = if (dragging) androidx.compose.animation.core.snap()
+        else androidx.compose.animation.core.spring(stiffness = 600f))
+    val drag = Modifier.pointerInput(maxOff) {
+        detectVerticalDragGestures(
+            onDragStart = { dragging = true },
+            onDragEnd = { dragging = false },
+            onDragCancel = { dragging = false },
+        ) { _, dy -> offset = (offset + dy).coerceIn(0f, maxOff) }
+    }
+    Column(
+        Modifier.fillMaxWidth().onSizeChanged { panelH = it.height }
+            .offset { IntOffset(0, shown.roundToInt()) },
+    ) {
+        Box(Modifier.fillMaxWidth().height(34.dp).then(drag)
+            .clickableNoRipple { offset = if (offset > maxOff / 2) 0f else maxOff },
+            contentAlignment = Alignment.Center) {
+            Box(Modifier.width(46.dp).height(5.dp).background(Color.White.copy(alpha = 0.75f), CircleShape))
+        }
+        Box(drag) { content() }
+    }
 }
 
 @Composable
