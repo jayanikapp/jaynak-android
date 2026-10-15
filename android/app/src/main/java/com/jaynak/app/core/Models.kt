@@ -630,6 +630,13 @@ data class PricingRules(
     val peakMultiplier: Double = 1.25,
     val peakHours: List<Int> = listOf(7, 8, 13, 14, 17, 18, 19),
 
+    val expressBaseFare: Double = 1.000,
+    val expressPerKm: Double = 0.180,
+    val expressPerMinute: Double = 0.025,
+    val maxCustomerOrders: Int = 3,
+    val maxDriverOpen: Int = 3,
+    val maxDriverExpress: Int = 1,
+
     val fixedCommission: Double = 0.160,
 
     val minCommission: Double = 0.100,
