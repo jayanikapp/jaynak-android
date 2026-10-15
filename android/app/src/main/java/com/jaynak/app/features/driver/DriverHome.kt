@@ -246,6 +246,9 @@ fun ActiveTripCard(order: Order) {
         else -> "استلمت الطلب"
     }
     var showConfirm by remember { mutableStateOf(false) }
+    var showProof by remember { mutableStateOf(false) }
+    val extras = com.jaynak.app.core.OrderExtras.of(order.remoteID)
+    val recipientShown = order.recipientName.ifEmpty { extras?.recipientName ?: "" }
 
     GlassCard(Modifier.fillMaxWidth(),
         tint = MB.red.copy(alpha = if (order.dispatchMode == com.jaynak.app.core.DispatchMode.nearby) 0.34f else 0.16f)) {
@@ -272,14 +275,16 @@ fun ActiveTripCard(order: Order) {
                     SFIcon("flag.checkered", size = 18.dp, tint = MB.red)
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(order.dropoff.name, style = MBType.callout, color = MB.ink)
-                        if (order.recipientName.isNotEmpty())
-                            Text("المستلم: ${order.recipientName}", style = MBType.micro, color = MB.ink3)
+                        if (recipientShown.isNotEmpty())
+                            Text("المستلم: $recipientShown" + (if (order.recipientPhone.isNotEmpty()) " · ${order.recipientPhone}" else ""),
+                                style = MBType.micro, color = MB.ink3)
                     }
                 }
-                if (customer != null) {
+                val customerName = customer?.name ?: extras?.customerName ?: ""
+                if (customerName.isNotEmpty()) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        SFIcon("person.fill", size = 14.dp, tint = MB.ink3)
-                        Text("${customer.name} · ${AppConfig.countryDialCode} ${customer.phone}",
+                        com.jaynak.app.design.Avatar(customerName, size = 30.dp)
+                        Text(if (customer != null) "$customerName · ${AppConfig.countryDialCode} ${customer.phone}" else customerName,
                             style = MBType.micro, color = MB.ink2)
                     }
                 }
@@ -301,7 +306,10 @@ fun ActiveTripCard(order: Order) {
                 }
                 GlassIconButton("phone.fill", { customer?.let { NavigationLauncher.call(context, it.phone) } },
                     size = 46.dp, iconSize = 15.dp, tint = MB.ink)
-                GlassIconButton("message.fill", { showChat = true }, size = 46.dp, iconSize = 15.dp, tint = MB.ink)
+                Box {
+                    GlassIconButton("message.fill", { showChat = true }, size = 46.dp, iconSize = 15.dp, tint = MB.ink)
+                    com.jaynak.app.design.UnreadBadge(store.unread("order-${order.id}"), Modifier.align(Alignment.TopEnd))
+                }
             }
 
             PrimaryCTA(actionTitle, onClick = { showConfirm = true }, symbol = "checkmark.circle.fill")
@@ -326,8 +334,19 @@ fun ActiveTripCard(order: Order) {
             },
             confirmText = "تأكيد",
             cancelText = "تراجع",
-            onConfirm = { store.advance(order) },
+            onConfirm = {
+                if (order.status == OrderStatus.pickedUp) store.advance(order) else showProof = true
+            },
             onDismiss = { showConfirm = false },
+        )
+    }
+
+    if (showProof) {
+        com.jaynak.app.features.shared.ProofSheet(
+            remoteID = order.remoteID,
+            stage = if (order.status == OrderStatus.delivering) "delivery" else "pickup",
+            onDone = { store.advance(order) },
+            onDismiss = { showProof = false },
         )
     }
 
