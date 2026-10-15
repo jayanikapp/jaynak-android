@@ -185,6 +185,12 @@ object Feedback {
         impact(ImpactStyle.medium)
     }
 
+    /** نغمة رسائل الإدارة/الدعم: ثلاث نغمات هابطة، مختلفة تماماً عن نغمة الرسائل العادية. */
+    fun adminMessage() {
+        play(listOf(Tone(1318.5, 0.12), Tone(987.8, 0.12), Tone(659.3, 0.28)), 0.75f)
+        impact(ImpactStyle.heavy)
+    }
+
     /** صفّارة عالية لطلب سريع جداً. */
     fun urgentOffer() {
         scope.launch {
@@ -314,6 +320,7 @@ object Feedback {
 object Notifications {
 
     private const val CH_OFFERS = "jaynak.offers"
+    private const val CH_ADMIN = "jaynak.admin.v1"
 
     /** يضبطه MainActivity ليطلب إذن الإشعارات (أندرويد ١٣+) عند الحاجة. */
     var requestPermission: (() -> Unit)? = null
@@ -337,6 +344,21 @@ object Notifications {
                 )
             }
         nm.createNotificationChannel(ch)
+        // قناة رسائل الإدارة: صوت رنين مختلف عن إشعارات الطلبات والرسائل
+        val adm = NotificationChannel(CH_ADMIN, "رسائل الإدارة", NotificationManager.IMPORTANCE_HIGH)
+            .apply {
+                description = "رسائل من الإدارة والدعم الفني"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 180, 90, 180, 90, 320)
+                setSound(
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+            }
+        nm.createNotificationChannel(adm)
     }
 
     /** يطلب الإذن إن لزم ويعيد هل الإشعارات مفعّلة الآن. */
@@ -377,15 +399,15 @@ object Notifications {
     }
 
     @SuppressLint("MissingPermission")
-    fun chat(from: String, text: String) {
+    fun chat(from: String, text: String, fromAdmin: Boolean = false) {
         if (!authorized) return
         ensureChannel()
         val open = PendingIntent.getActivity(
             Boot.app, 0, Intent(Boot.app, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val n = NotificationCompat.Builder(Boot.app, CH_OFFERS)
-            .setContentTitle("رسالة من $from")
+        val n = NotificationCompat.Builder(Boot.app, if (fromAdmin) CH_ADMIN else CH_OFFERS)
+            .setContentTitle(if (fromAdmin) "📣 رسالة من الإدارة" else "رسالة من $from")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setSmallIcon(android.R.drawable.ic_dialog_email)
