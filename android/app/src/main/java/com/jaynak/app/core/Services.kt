@@ -260,6 +260,7 @@ object OrdersService {
         payment: String, note: String,
         recipientPhone: String,
         dispatchMode: String,
+        recipientName: String = "",
     ): RemoteOrder {
         val body = JSONObject()
             .put("kind", kind)
@@ -268,6 +269,7 @@ object OrdersService {
             .put("payment", payment)
             .put("note", note)
             .put("recipientPhone", recipientPhone)
+            .put("recipientName", recipientName)
             .put("dispatchMode", dispatchMode)
         val json = send("api/orders", "POST", body)
         val raw = json.optJSONObject("order") ?: throw Failure.Server("ردّ غير متوقّع من السيرفر")
@@ -382,6 +384,7 @@ object OrdersService {
                 ?: "فشل الطلب (${res.status})"
             throw Failure.Server(message)
         }
+        OrderExtras.scan(res.json)
         return res.json
     }
 
