@@ -410,6 +410,7 @@ class AppStore {
         }
         session = null
         challenge = null
+        chats = emptyList(); chatSince = 0.0; chatPrimed = false
 
         AppConfig.sessionToken = null
         Feedback.impact(ImpactStyle.light)
@@ -723,6 +724,7 @@ class AppStore {
         } catch (e: Exception) {
             // ننتظر الدورة التالية
         }
+        refreshChats()
         refreshAdminOrders()
     }
 
@@ -795,6 +797,7 @@ class AppStore {
         val did = session?.driverID ?: return
         syncProfile()
         pullRules()
+        refreshChats()
         try {
             // اعتماد الإدارة يصل من السيرفر
             DirectorySync.myApproval()?.let { a ->
@@ -869,6 +872,7 @@ class AppStore {
         if (!OrdersService.isAvailable) return
         val cid = session?.customerID ?: return
         pullRules()
+        refreshChats()
         try {
             val mine = OrdersService.mine()
             var changed = false
@@ -1929,8 +1933,60 @@ class AppStore {
 
     // ───────── الدردشة والدعم ─────────
 
-    fun thread(id: String): List<ChatMessage> =
-        chats.filter { it.threadID == id }.sortedBy { it.date }
+    /** المفتاح الحقيقي للمحادثة عند السيرفر. */
+    private fun canon(thread: String): String = when {
+        thread.startsWith("support-") -> if (session?.role == UserRole.admin) thread else "support"
+        thread.startsWith("order-") -> {
+            val lid = thread.removePrefix("order-")
+            "order-" + (orders.firstOrNull { it.id == lid }?.remoteID ?: lid)
+        }
+        else -> thread
+    }
+
+    fun thread(id: String): List<ChatMessage> {
+        val t = canon(id)
+        return chats.filter { it.threadID == t }.sortedBy { it.date }
+    }
+
+    private var chatSince = 0.0
+    private var chatPrimed = false
+
+    /** يجلب الرسائل الجديدة من السيرفر وينبّه (صوت + إشعار) عند وصول رسالة. */
+    suspend fun refreshChats() {
+        if (!OrdersService.isAvailable || session == null) return
+        try {
+            val arr = OrdersService.chatList(chatSince)
+            val known = chats.map { it.id }.toHashSet()
+            val add = mutableListOf<ChatMessage>()
+            var maxTs = chatSince
+            for (i in 0 until arr.length()) {
+                val j = arr.getJSONObject(i)
+                val ts = j.optDouble("ts", 0.0)
+                if (ts > maxTs) maxTs = ts
+                val mid = j.optString("id")
+                if (mid.isEmpty() || mid in known) continue
+                add += ChatMessage(
+                    id = mid, threadID = j.optString("thread"), senderID = j.optString("phone"),
+                    senderName = j.optString("name"), isMine = j.optBoolean("mine"),
+                    body = j.optString("body"), date = (ts * 1000).toLong())
+            }
+            chatSince = maxTs
+            if (add.isNotEmpty()) {
+                chats = chats + add
+                save()
+                val incoming = add.filter { !it.isMine }
+                if (chatPrimed && incoming.isNotEmpty()) {
+                    val m = incoming.last()
+                    Feedback.message()
+                    Notifications.chat(m.senderName, m.body)
+                    toast = Toast(text = "💬 ${m.senderName}: ${m.body.take(60)}")
+                }
+            }
+            chatPrimed = true
+        } catch (e: Exception) {
+            // الدورة القادمة
+        }
+    }
 
     fun send(body: String, thread: String, role: UserRole) {
         val trimmed = body.trim()
@@ -1942,11 +1998,21 @@ class AppStore {
             UserRole.driver -> { name = currentDriver?.name ?: "المندوب"; id = session?.driverID ?: newId() }
             UserRole.admin -> { name = "الدعم الفني"; id = newId() }
         }
-        chats = chats + ChatMessage(threadID = thread, senderID = id, senderName = name,
+        val th = canon(thread)
+        val msg = ChatMessage(threadID = th, senderID = id, senderName = name,
             isMine = true, body = trimmed)
+        chats = chats + msg
         Feedback.impact(ImpactStyle.light)
         save()
-        autoReply(thread, role)
+        if (OrdersService.isAvailable) {
+            scope.launch {
+                try {
+                    OrdersService.chatSend(msg.id, th, trimmed, if (role == UserRole.driver) "driver" else "customer")
+                } catch (e: Exception) {
+                    toast = Toast(text = "تعذّر إرسال الرسالة — " + (e.message ?: ""), kind = Toast.Kind.error)
+                }
+            }
+        } else autoReply(thread, role)
     }
 
     /** ردّ آلي تجريبي بعد ١٫٦ ثانية — كما في iOS. */
