@@ -1,9 +1,11 @@
 package com.jaynak.app.features.driver
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -99,7 +101,7 @@ fun DriverOfferSheet(order: Order) {
             usePlatformDefaultWidth = false),
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            Box(Modifier.fillMaxWidth().height(520.dp).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))) {
+            Box(Modifier.fillMaxWidth().fillMaxHeight(0.9f).clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))) {
                 BrandBackground(intensity = 1.2f)
                 if (order.dispatchMode == DispatchMode.nearby) {
                     Box(Modifier.fillMaxSize().background(MB.red.copy(alpha = pulse)))
@@ -107,6 +109,9 @@ fun DriverOfferSheet(order: Order) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
                     val ringTrack = MB.ink.copy(alpha = 0.12f)
                     val ringColor = if (remaining < 6) MB.red else MB.green
                     Box(Modifier.padding(top = 18.dp).size(92.dp), contentAlignment = Alignment.Center) {
@@ -180,7 +185,7 @@ fun DriverOfferSheet(order: Order) {
                         }
                     }
 
-                    Spacer(Modifier.weight(1f))
+                    }
 
                     Row(Modifier.fillMaxWidth().padding(bottom = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -188,11 +193,11 @@ fun DriverOfferSheet(order: Order) {
                         GlassButton("رفض", onClick = {
                             Feedback.stopOfferAlert()
                             store.declineOffer(order)
-                        }, modifier = Modifier.width(110.dp).height(54.dp), tint = MB.red)
+                        }, modifier = Modifier.width(130.dp).height(60.dp), tint = MB.red)
                         PrimaryCTA("قبول الطلب", onClick = {
                             Feedback.stopOfferAlert()
                             store.acceptOffer(order)
-                        }, modifier = Modifier.weight(1f), symbol = "checkmark.circle.fill")
+                        }, modifier = Modifier.weight(1f).height(60.dp), symbol = "checkmark.circle.fill")
                     }
                 }
             }
