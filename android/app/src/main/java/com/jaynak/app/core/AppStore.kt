@@ -1964,6 +1964,7 @@ class AppStore {
             val arr = OrdersService.chatList(chatSince)
             val known = chats.map { it.id }.toHashSet()
             val add = mutableListOf<ChatMessage>()
+            val adminIds = HashSet<String>()
             var maxTs = chatSince
             for (i in 0 until arr.length()) {
                 val j = arr.getJSONObject(i)
@@ -1971,6 +1972,7 @@ class AppStore {
                 if (ts > maxTs) maxTs = ts
                 val mid = j.optString("id")
                 if (mid.isEmpty() || mid in known) continue
+                if (j.optString("role") == "admin") adminIds += mid
                 add += ChatMessage(
                     id = mid, threadID = j.optString("thread"), senderID = j.optString("phone"),
                     senderName = j.optString("name"), isMine = j.optBoolean("mine"),
@@ -1983,8 +1985,9 @@ class AppStore {
                 val incoming = add.filter { !it.isMine }
                 if (chatPrimed && incoming.isNotEmpty()) {
                     val m = incoming.last()
-                    Feedback.message()
-                    Notifications.chat(m.senderName, m.body)
+                    val fromAdmin = m.id in adminIds
+                    if (fromAdmin) Feedback.adminMessage() else Feedback.message()
+                    Notifications.chat(m.senderName, m.body, fromAdmin)
                     toast = Toast(text = "💬 ${m.senderName}: ${m.body.take(60)}")
                 }
             }
