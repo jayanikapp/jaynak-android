@@ -168,6 +168,7 @@ private fun BaseRules() {
             PriceStepper("سعر الكيلومتر للسريع", r.expressPerKm, 0.010) { v -> set { it.copy(expressPerKm = v) } }
             PriceStepper("سعر الدقيقة للسريع", r.expressPerMinute, 0.005) { v -> set { it.copy(expressPerMinute = v) } }
             PriceStepper("عمولة السريع من كل ريال", r.expressCommissionPerRial, 0.010) { v -> set { it.copy(expressCommissionPerRial = v) } }
+            PriceStepper("عمولة السريع من كل ريال", r.expressCommissionPerRial, 0.010) { v -> set { it.copy(expressCommissionPerRial = v) } }
             HorizontalDivider(Modifier.alpha(0.25f), color = MB.hairline)
             SectionHeader("الحدود", subtitle = "تُطبَّق من السيرفر على الجميع", symbol = "slider.horizontal.3")
             CountStepper("أقصى طلبات جارية للزبون", r.maxCustomerOrders) { v -> set { it.copy(maxCustomerOrders = v) } }
