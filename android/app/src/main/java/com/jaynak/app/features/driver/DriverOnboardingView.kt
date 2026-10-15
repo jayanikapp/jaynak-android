@@ -319,6 +319,7 @@ private fun Documents(draft: Driver, set: (Driver) -> Unit, onLegal: () -> Unit)
         DocumentUploadCard(DocumentKind.license, draft.docs, update)
         DocumentUploadCard(DocumentKind.ownership, draft.docs, update)
         DocumentUploadCard(DocumentKind.vehicle, draft.docs, update)
+        DocumentUploadCard(DocumentKind.selfie, draft.docs, update)
 
         Row(Modifier.fillMaxWidth().glassSurface(16.dp, null, 0.06f).pressable(0.99f) { showDate = true }.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically) {
