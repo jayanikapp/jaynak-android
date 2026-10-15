@@ -633,6 +633,7 @@ data class PricingRules(
     val expressBaseFare: Double = 1.000,
     val expressPerKm: Double = 0.180,
     val expressPerMinute: Double = 0.025,
+    val expressCommissionPerRial: Double = 0.100,
     val maxCustomerOrders: Int = 3,
     val maxDriverOpen: Int = 3,
     val maxDriverExpress: Int = 1,
