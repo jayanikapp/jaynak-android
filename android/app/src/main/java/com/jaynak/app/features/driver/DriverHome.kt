@@ -229,7 +229,12 @@ fun ActiveTripCard(order: Order) {
     val customer = store.customers.firstOrNull { it.id == order.customerID }
     val toDropoff = order.status == OrderStatus.pickedUp || order.status == OrderStatus.delivering
     val target = if (toDropoff) order.dropoff else order.pickup
-    val actionTitle = if (toDropoff) "سلّمت الطلب" else "استلمت الطلب"
+    val actionTitle = when (order.status) {
+        OrderStatus.pickedUp -> "بدأت التوصيل"
+        OrderStatus.delivering -> "سلّمت الطلب"
+        else -> "استلمت الطلب"
+    }
+    var showConfirm by remember { mutableStateOf(false) }
 
     GlassCard(Modifier.fillMaxWidth(), tint = MB.red.copy(alpha = 0.16f)) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.End) {
@@ -285,7 +290,7 @@ fun ActiveTripCard(order: Order) {
                 GlassIconButton("message.fill", { showChat = true }, size = 46.dp, iconSize = 15.dp, tint = MB.ink)
             }
 
-            PrimaryCTA(actionTitle, onClick = { store.advance(order) }, symbol = "checkmark.circle.fill")
+            PrimaryCTA(actionTitle, onClick = { showConfirm = true }, symbol = "checkmark.circle.fill")
             if (order.status == com.jaynak.app.core.OrderStatus.pickingUp ||
                 order.status == com.jaynak.app.core.OrderStatus.assigned) {
                 Text(
@@ -295,6 +300,21 @@ fun ActiveTripCard(order: Order) {
                 )
             }
         }
+    }
+
+    if (showConfirm) {
+        com.jaynak.app.design.ConfirmDialog(
+            title = "تأكيد: " + actionTitle + "؟",
+            message = when (order.status) {
+                OrderStatus.pickedUp -> "سيظهر للعميل أنك في الطريق إليه بالطلب."
+                OrderStatus.delivering -> "بعد التأكيد ينتهي الطلب ويُحتسب لك."
+                else -> "سيظهر للعميل أنك استلمت الطلب."
+            },
+            confirmText = "تأكيد",
+            cancelText = "تراجع",
+            onConfirm = { store.advance(order) },
+            onDismiss = { showConfirm = false },
+        )
     }
 
     if (showCancel) {
