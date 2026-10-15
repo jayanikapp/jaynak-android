@@ -483,6 +483,7 @@ fun Avatar(name: String, modifier: Modifier = Modifier, size: Dp = 44.dp, tint: 
         contentAlignment = Alignment.Center,
     ) {
         Text(initials, style = MBType.ar((size.value * 0.38f).toInt(), FontWeight.Bold), color = Color.White)
+        com.jaynak.app.core.AvatarRegistry.get(name)?.let { RemoteImage(it, Modifier.size(size)) }
     }
 }
 
