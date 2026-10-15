@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,7 +80,7 @@ fun DriverHome(onOpenTrip: () -> Unit) {
     val store = LocalStore.current
     var showSupport by remember { mutableStateOf(false) }
     val d = store.currentDriver
-    val active = store.activeOrderForCurrentDriver
+    val actives = store.activeOrdersForCurrentDriver
 
     val todayOrders = if (d == null) emptyList() else store.orders.filter {
         it.driverID == d.id && it.status == OrderStatus.delivered && isToday(it.deliveredAt ?: it.createdAt)
@@ -126,7 +127,9 @@ fun DriverHome(onOpenTrip: () -> Unit) {
             }
 
             Box(Modifier.fillMaxWidth().appearIn(1)) {
-                if (active != null) ActiveTripCard(active) else PresenceCard()
+                if (actives.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    actives.forEach { key(it.id) { ActiveTripCard(it) } }
+                } else PresenceCard()
             }
 
             Row(Modifier.fillMaxWidth().appearIn(2), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
