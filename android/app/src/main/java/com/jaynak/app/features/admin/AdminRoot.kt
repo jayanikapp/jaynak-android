@@ -45,6 +45,8 @@ fun AdminRoot() {
             add(6 to TabItem("الخريطة", "map.fill"))
         if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
             add(1 to TabItem("الطلبات", "shippingbox.fill"))
+        if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
+            add(7 to TabItem("سجل الصور", "photo"))
         if (store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers)) {
             add(2 to TabItem("المستخدمون", "person.2.fill"))
             add(5 to TabItem("طلبات الحذف", "person.fill.xmark"))
@@ -75,6 +77,7 @@ fun AdminRoot() {
                 0 -> AdminOverview()
                 6 -> AdminLiveMap()
                 1 -> AdminOrders()
+                7 -> AdminProofs()
                 2 -> AdminAccounts()
                 5 -> AdminDeletionRequests()
                 3 -> AdminSettings()
