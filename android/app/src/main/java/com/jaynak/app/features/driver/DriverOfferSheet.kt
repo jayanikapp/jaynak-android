@@ -1,6 +1,7 @@
 package com.jaynak.app.features.driver
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
