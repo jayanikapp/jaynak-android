@@ -204,7 +204,7 @@ fun PanelActions(content: @Composable () -> Unit) {
 object PanelStatus {
     fun title(s: String) = mapOf("searching" to "بحث عن مندوب", "accepted" to "تم القبول", "pickedUp" to "تم الاستلام",
         "delivering" to "في الطريق", "delivered" to "مكتمل", "cancelled" to "ملغي")[s] ?: s
-    fun tint(s: String): Color = when (s) {
+    @Composable fun tint(s: String): Color = when (s) {
         "searching" -> MB.gold
         "accepted", "pickedUp", "delivering" -> MB.green
         "cancelled" -> MB.red
