@@ -352,6 +352,8 @@ data class DriverDocuments(
     val licenseExpiry: Long = nowMs() + 365 * DAY_MS,
 
     val assets: List<DocumentAsset> = emptyList(),
+    /** حساب أنشأته الإدارة وتحقّقت من بياناته — لا يُطلب من المندوب رفع مستندات. */
+    val adminVerified: Boolean = false,
 ) {
     fun assetsOf(kind: DocumentKind): List<DocumentAsset> = assets.filter { it.kind == kind }
     fun has(kind: DocumentKind): Boolean = assetsOf(kind).size >= kind.minimumCount
@@ -368,9 +370,9 @@ data class DriverDocuments(
         get() = assets.filter { it.state == DocumentState.stored || it.state == DocumentState.failed }
 
     val isComplete: Boolean
-        get() = civilID.digitsOnly.length == AppConfig.civilIDLength &&
+        get() = adminVerified || (civilID.digitsOnly.length == AppConfig.civilIDLength &&
             licenseNumber.length >= 4 &&
-            missing.isEmpty()
+            missing.isEmpty())
 }
 
 @Serializable

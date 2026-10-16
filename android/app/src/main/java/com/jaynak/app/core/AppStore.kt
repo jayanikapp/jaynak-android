@@ -184,7 +184,7 @@ class AppStore {
         // حساب الإدارة يدخل برقمه أياً كان الدور المختار.
         val isAdminPhone = admins.any { it.phone == phone && it.isActive }
 
-        if (mode == AuthMode.signIn && !isAdminPhone && !hasAccount(phone, role)) {
+        if (mode == AuthMode.signIn && !isAdminPhone && !AppConfig.otpRequired && !hasAccount(phone, role)) {
             authError = if (role == UserRole.driver)
                 "ما عندك حساب مندوب بهذا الرقم. ارجع واختر «إنشاء حساب»."
             else
@@ -292,6 +292,40 @@ class AppStore {
             UserRole.driver -> drivers.any { it.phone == phone }
             UserRole.admin -> admins.any { it.phone == phone && it.isActive }
         }
+    }
+
+    /**
+     * بعد حذف التطبيق وإعادة تثبيته تكون الذاكرة المحلية فارغة، فنسأل السيرفر (المرجع)
+     * هل لهذا الرقم حساب بهذا الدور، ونستعيده محلياً قبل إكمال الدخول.
+     */
+    suspend fun restoreAccountFromServer(role: UserRole) {
+        val phone = verifiedPhone ?: return
+        if (hasAccount(phone, role)) return
+        try {
+            val me = OrdersService.send("api/me", "GET", null)
+            when (role) {
+                UserRole.customer -> me.optJSONObject("customer")?.let { c ->
+                    customers = customers + Customer(
+                        name = c.optString("name").ifEmpty { "زبون ${phone.takeLast(4)}" },
+                        phone = phone, walletBalance = c.optDouble("walletBalance", 0.0),
+                        savedPlaces = listOf(Geo.place("جمعية حولي")),
+                    )
+                    save()
+                }
+                UserRole.driver -> me.optJSONObject("driver")?.let { d ->
+                    val ap = runCatching { DriverApproval.valueOf(d.optString("approval")) }
+                        .getOrDefault(DriverApproval.pending)
+                    drivers = drivers + Driver(
+                        name = d.optString("name").ifEmpty { "مندوب ${phone.takeLast(4)}" },
+                        phone = phone, coord = Geo.cityCenter, approval = ap,
+                        docs = DriverDocuments(adminVerified = d.optBoolean("adminCreated", false)),
+                        earningsBalance = d.optDouble("earningsBalance", 0.0),
+                    )
+                    save()
+                }
+                else -> {}
+            }
+        } catch (_: Exception) { /* بلا اتصال: يبقى السلوك المحلي */ }
     }
 
     fun completeSignIn(
@@ -824,6 +858,11 @@ class AppStore {
                         drivers = drivers.mapAt(di) { it.copy(earningsBalance = bal, completedOrders = cnt) }
                         save()
                     }
+                }
+                // حساب أنشأته الإدارة: يدخل مباشرة دون رفع مستندات
+                if (di >= 0 && dj.optBoolean("adminCreated", false) && !drivers[di].docs.adminVerified) {
+                    drivers = drivers.mapAt(di) { it.copy(docs = it.docs.copy(adminVerified = true)) }
+                    save()
                 }
             }
             val feed = OrdersService.feed()

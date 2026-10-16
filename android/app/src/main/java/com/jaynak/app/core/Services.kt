@@ -328,6 +328,14 @@ object OrdersService {
     suspend fun fetchRules(): JSONObject? =
         send("api/rules", "GET", null).optJSONObject("rules")
 
+    /** سحب أرباح المندوب: الرصيد وسجل الطلبات وأيام السحب. */
+    suspend fun withdrawals(): JSONObject = send("api/driver/withdrawals", "GET", null)
+
+    suspend fun withdraw(amount: Double, bankName: String, holder: String, account: String): JSONObject =
+        send("api/driver/withdraw", "POST", JSONObject()
+            .put("amount", amount).put("bankName", bankName)
+            .put("holder", holder).put("account", account))
+
     suspend fun saveRules(body: JSONObject) {
         send("api/admin/rules", "POST", body)
     }
@@ -414,8 +422,10 @@ object WalletService {
         class Server(m: String) : Failure(m)
     }
 
-    suspend fun startTopUp(amount: Double): CheckoutResult {
-        val json = post("api/wallet/topup/checkout", JSONObject().put("amount", amount))
+    suspend fun startTopUp(amount: Double, forDriver: Boolean = false): CheckoutResult {
+        val body = JSONObject().put("amount", amount)
+        if (forDriver) body.put("for", "driver")
+        val json = post("api/wallet/topup/checkout", body)
         val reference = json.str("reference") ?: throw Failure.Server("تعذّر بدء عملية الدفع")
         return CheckoutResult(
             reference = reference,

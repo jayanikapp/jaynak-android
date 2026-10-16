@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -24,6 +25,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ import com.jaynak.app.core.AppConfig
 import com.jaynak.app.core.Fmt
 import com.jaynak.app.core.Order
 import com.jaynak.app.core.OrderStatus
+import com.jaynak.app.core.WalletService
 import com.jaynak.app.core.money
 import com.jaynak.app.core.moneyShort
 import com.jaynak.app.design.BrandBackground
@@ -58,6 +61,9 @@ import com.jaynak.app.design.SheetGrabber
 import com.jaynak.app.design.StatTile
 import com.jaynak.app.design.glassSurface
 import com.jaynak.app.features.customer.TxnRow
+import com.jaynak.app.features.shared.PaymentWebOutcome
+import com.jaynak.app.features.shared.PaymentWebView
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -70,10 +76,22 @@ private fun sameDay(a: Long, b: Long): Boolean {
     return ca.get(Calendar.YEAR) == cb.get(Calendar.YEAR) && ca.get(Calendar.DAY_OF_YEAR) == cb.get(Calendar.DAY_OF_YEAR)
 }
 
+private data class DrvPaySession(val reference: String, val amount: Double, val url: String,
+                                  val successURL: String, val cancelURL: String)
+
+private sealed class DrvPayStage {
+    object Paying : DrvPayStage()
+    object Confirming : DrvPayStage()
+    data class Done(val ok: Boolean, val pending: Boolean, val message: String) : DrvPayStage()
+}
+
 /** مقابل EarningsView.swift. */
 @Composable
 fun EarningsView() {
     val store = LocalStore.current
+    val scope = rememberCoroutineScope()
+    var paySession by remember { mutableStateOf<DrvPaySession?>(null) }
+    var payStage by remember { mutableStateOf<DrvPayStage>(DrvPayStage.Paying) }
     var range by remember { mutableIntStateOf(0) }
     var showWithdraw by remember { mutableStateOf(false) }
     var withdrawAmount by remember { mutableDoubleStateOf(0.0) }
@@ -245,29 +263,8 @@ fun EarningsView() {
         }
     }
 
-    if (showWithdraw) {
-        JSheet(onDismiss = { showWithdraw = false }, fullHeight = false) {
-            Box(Modifier.fillMaxWidth()) {
-                BrandBackground(intensity = 0.6f)
-                Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    SheetGrabber()
-                    Text("سحب الأرباح", style = MBType.section, color = MB.ink)
-                    Text(withdrawAmount.money, style = MBType.num(36, FontWeight.Bold), color = MB.ink)
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        Slider(withdrawAmount.toFloat(), { withdrawAmount = it.toDouble() },
-                            valueRange = 0f..maxOf(0.001, balance).toFloat(),
-                            colors = SliderDefaults.colors(thumbColor = MB.green, activeTrackColor = MB.green))
-                    }
-                    KeyValueRow("الرصيد المتاح", balance.money)
-                    PrimaryCTA("تأكيد السحب", symbol = "checkmark", enabled = withdrawAmount > 0, onClick = {
-                        store.withdrawEarnings(withdrawAmount); showWithdraw = false
-                    })
-                    Spacer(Modifier.height(24.dp))
-                }
-            }
-        }
-    }
+    // السحب الحقيقي: يُرسَل للسيرفر ويظهر للإدارة في تبويب «السحوبات»
+    if (showWithdraw) WithdrawSheet { showWithdraw = false }
 
     if (showSettle) {
         JSheet(onDismiss = { showSettle = false }, fullHeight = false) {
@@ -285,17 +282,98 @@ fun EarningsView() {
                     }
                     KeyValueRow("رصيدك الحالي", balance.money, valueColor = if (balance < 0) MB.red else MB.ink)
                     KeyValueRow("بعد التسديد", (balance + settleAmount).money, valueColor = MB.green, bold = true)
-                    val ctxW = androidx.compose.ui.platform.LocalContext.current
-                    PrimaryCTA("إرسال طلب التعبئة للإدارة", symbol = "checkmark", onClick = {
-                        val who = d?.name ?: ""
-                        com.jaynak.app.features.shared.NavigationLauncher.whatsapp(ctxW, com.jaynak.app.core.AppConfig.ownerPhone,
-                            "السلام عليكم، أنا المندوب " + who + " وأريد تعبئة محفظتي بمبلغ " + settleAmount.money +
-                                " (رصيدي الحالي " + balance.money + ")")
+                    PrimaryCTA("ادفع الآن عبر ثواني", symbol = "creditcard.fill", onClick = {
                         showSettle = false
+                        val amt = settleAmount
+                        scope.launch {
+                            try {
+                                val r = WalletService.startTopUp(amt, forDriver = true)
+                                val url = r.redirectURL
+                                if (url == null) {
+                                    store.toast = com.jaynak.app.core.AppStore.Toast(
+                                        text = "تعذّر فتح صفحة الدفع", kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+                                } else {
+                                    payStage = DrvPayStage.Paying
+                                    paySession = DrvPaySession(r.reference, amt, url, r.successURL, r.cancelURL)
+                                }
+                            } catch (e: Exception) {
+                                store.toast = com.jaynak.app.core.AppStore.Toast(
+                                    text = e.message ?: "خطأ", kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+                            }
+                        }
                     })
-                    Text("تُضاف الإدارة المبلغ لمحفظتك بعد استلامه، ويظهر رصيدك تلقائياً.", style = MBType.micro, color = MB.ink3,
+                    Text("يُضاف المبلغ لرصيدك تلقائياً فور نجاح الدفع.", style = MBType.micro, color = MB.ink3,
                         textAlign = TextAlign.Center)
                     Spacer(Modifier.height(24.dp))
+                }
+            }
+        }
+    }
+
+    paySession?.let { ps ->
+        JSheet(onDismiss = { paySession = null; payStage = DrvPayStage.Paying }) {
+            Box(Modifier.fillMaxSize()) {
+                BrandBackground(intensity = 0.6f)
+                when (val st = payStage) {
+                    DrvPayStage.Paying -> PaymentWebView(
+                        url = ps.url, successPrefix = ps.successURL, cancelPrefix = ps.cancelURL,
+                        modifier = Modifier.fillMaxSize(),
+                    ) { outcome ->
+                        when (outcome) {
+                            PaymentWebOutcome.success -> {
+                                payStage = DrvPayStage.Confirming
+                                scope.launch {
+                                    payStage = try {
+                                        val r = WalletService.confirmTopUp(ps.reference)
+                                        when {
+                                            r.credited || r.status == "PAID" -> {
+                                                runCatching { store.refreshDriverFeed() }
+                                                DrvPayStage.Done(true, false, "")
+                                            }
+                                            r.status == "PENDING" || r.status == "PROCESSING" ->
+                                                DrvPayStage.Done(false, true, "")
+                                            else -> DrvPayStage.Done(false, false, "لم تكتمل عملية الدفع")
+                                        }
+                                    } catch (e: Exception) {
+                                        DrvPayStage.Done(false, false, e.message ?: "تعذّر التأكيد")
+                                    }
+                                }
+                            }
+                            PaymentWebOutcome.cancelled -> payStage = DrvPayStage.Done(false, false, "تم إلغاء عملية الدفع")
+                        }
+                    }
+                    DrvPayStage.Confirming -> Column(
+                        Modifier.fillMaxSize().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                    ) {
+                        CircularProgressIndicator(color = MB.green)
+                        Text("جارٍ التأكيد من الخادم…", style = MBType.callout, color = MB.ink2)
+                    }
+                    is DrvPayStage.Done -> Column(
+                        Modifier.fillMaxSize().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
+                    ) {
+                        when {
+                            st.ok -> {
+                                SFIcon("checkmark.circle.fill", size = 56.dp, tint = MB.green)
+                                Text("تم شحن رصيدك بنجاح", style = MBType.section, color = MB.ink)
+                            }
+                            st.pending -> {
+                                SFIcon("clock.fill", size = 56.dp, tint = MB.gold)
+                                Text("الدفع قيد التأكيد", style = MBType.section, color = MB.ink)
+                                Text("سيُضاف المبلغ لرصيدك تلقائياً فور اكتمال التأكيد",
+                                    style = MBType.caption, color = MB.ink2, textAlign = TextAlign.Center)
+                            }
+                            else -> {
+                                SFIcon("xmark.circle.fill", size = 56.dp, tint = MB.red)
+                                Text(st.message.ifEmpty { "فشلت عملية الدفع" }, style = MBType.section, color = MB.ink,
+                                    textAlign = TextAlign.Center)
+                            }
+                        }
+                        PrimaryCTA("تم", symbol = "checkmark", onClick = { paySession = null; payStage = DrvPayStage.Paying })
+                    }
                 }
             }
         }
