@@ -539,7 +539,7 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
         scope.launch {
             val outcome = store.verifyCode(code)
             if (outcome == AppStore.VerifyOutcome.needsRole) {
-                if (mode == AuthMode.signIn) store.restoreAccountFromServer(role)
+                store.restoreAccountFromServer(role)
                 if (store.completeSignIn(role, mode, store.pendingSignUpName)) {
                     // سجّل الحساب على السيرفر فوراً — كي لا يضيع لو حُذف التطبيق قبل أول طلب
                     runCatching { store.syncProfile() }

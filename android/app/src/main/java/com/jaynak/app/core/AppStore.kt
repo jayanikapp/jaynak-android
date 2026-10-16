@@ -300,7 +300,13 @@ class AppStore {
      */
     suspend fun restoreAccountFromServer(role: UserRole) {
         val phone = verifiedPhone ?: return
-        if (hasAccount(phone, role)) return
+        if (hasAccount(phone, role)) {
+            // قد تكون الإدارة حذفت الحساب بعد موافقتها — لا ندخل بحساب محلي قديم
+            try {
+                applyDeletionDecision(OrdersService.send("api/account/delete-request", "GET", null), role, phone)
+            } catch (_: Exception) { }
+            if (hasAccount(phone, role)) return
+        }
         try {
             val me = OrdersService.send("api/me", "GET", null)
             when (role) {
@@ -833,6 +839,8 @@ class AppStore {
         if (!OrdersService.isAvailable) return
         val did = session?.driverID ?: return
         syncProfile()
+        checkDeletionStatus()
+        if (session == null) return
         pullRules()
         refreshChats()
         try {
@@ -2247,6 +2255,96 @@ class AppStore {
         Feedback.success()
         toast = Toast(text = "أُرسل طلب حذف الحساب — سيراجعه فريقنا قريباً", kind = Toast.Kind.success)
         save()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            sendDeletionToServer(trimmed, if (role == UserRole.driver) "driver" else "customer", name)
+        }
+    }
+
+    /** يرسل طلب الحذف للسيرفر ليراه المالك في اللوحة ويقرّر. */
+    suspend fun sendDeletionToServer(reason: String, role: String, name: String) {
+        if (!OrdersService.isAvailable) return
+        runCatching {
+            OrdersService.send("api/account/delete-request", "POST",
+                org.json.JSONObject().put("role", role).put("reason", reason).put("name", name))
+        }
+    }
+
+    private var delCheckAt = 0L
+
+    /** يسأل السيرفر عن قرار الإدارة في طلب الحذف: موافقة → يُمسح الحساب محلياً ويخرج صاحبه. */
+    suspend fun checkDeletionStatus() {
+        val s = session ?: return
+        if (s.role == UserRole.admin || !OrdersService.isAvailable) return
+        val now = nowMs()
+        if (now - delCheckAt < 20_000) return
+        delCheckAt = now
+        try {
+            val j = OrdersService.send("api/account/delete-request", "GET", null)
+            val mine = myDeletionRequest
+            if (j.optJSONObject("request") == null && mine != null) {
+                sendDeletionToServer(mine.reason, if (s.role == UserRole.driver) "driver" else "customer", mine.requesterName)
+            }
+            applyDeletionDecision(j, s.role, s.phone)
+        } catch (e: OrdersService.Failure) {
+            // الجلسة أُبطلت بعد موافقة الحذف: نُخرج صاحب الطلب
+            if (e === OrdersService.Failure.Unauthorized && myDeletionRequest != null) {
+                session = null; challenge = null
+                toast = Toast(text = "انتهت الجلسة — سجّل الدخول من جديد", kind = Toast.Kind.info)
+                save()
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun applyDeletionDecision(j: org.json.JSONObject, role: UserRole, phone: String) {
+        val req = j.optJSONObject("request") ?: return
+        val key = if (role == UserRole.driver) "driver" else "customer"
+        if (req.optString("role") != key) return
+        when (req.optString("status")) {
+            "rejected" -> {
+                val i = deletionRequests.indexOfFirst {
+                    it.phone == phone && it.role == role && it.status == DeletionRequestStatus.pending
+                }
+                if (i >= 0) {
+                    deletionRequests = deletionRequests.mapAt(i) {
+                        it.copy(status = DeletionRequestStatus.rejected, decidedAt = nowMs(),
+                            rejectionReason = req.optString("note"))
+                    }
+                    toast = Toast(text = "رُفض طلب حذف الحساب", kind = Toast.Kind.info)
+                    save()
+                }
+            }
+            "approved" -> {
+                val exists = j.optJSONObject("accountExists")?.optBoolean(key, true) ?: true
+                if (exists) return
+                val decidedMs = (req.optDouble("decidedAt", 0.0) * 1000).toLong()
+                val acctId: Id
+                val created: Long
+                if (role == UserRole.driver) {
+                    val d = drivers.firstOrNull { it.phone == phone } ?: return
+                    acctId = d.id; created = d.createdAt
+                } else {
+                    val c = customers.firstOrNull { it.phone == phone } ?: return
+                    acctId = c.id; created = c.createdAt
+                }
+                if (created > decidedMs) return          // حساب جديد أُنشئ بعد الحذف
+                if (role == UserRole.driver) {
+                    orders = orders.map { if (it.driverID == acctId) it.copy(driverID = null) else it }
+                    transactions = transactions.filter { it.ownerID != acctId }
+                    drivers = drivers.filter { it.id != acctId }
+                } else {
+                    orders = orders.filter { it.customerID != acctId }
+                    transactions = transactions.filter { it.ownerID != acctId }
+                    customers = customers.filter { it.id != acctId }
+                }
+                deletionRequests = deletionRequests.map {
+                    if (it.phone == phone && it.role == role && it.status == DeletionRequestStatus.pending)
+                        it.copy(status = DeletionRequestStatus.approved, decidedAt = nowMs()) else it
+                }
+                if (session?.customerID == acctId || session?.driverID == acctId) { session = null; challenge = null }
+                toast = Toast(text = "تم حذف حسابك", kind = Toast.Kind.success)
+                save()
+            }
+        }
     }
 
     /** الطلب المعلَّق للحساب الحالي، إن وُجد. */
