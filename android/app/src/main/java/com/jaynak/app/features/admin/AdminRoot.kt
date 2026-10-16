@@ -1,6 +1,8 @@
 package com.jaynak.app.features.admin
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -38,24 +40,26 @@ import com.jaynak.app.design.TabScaffold
 fun AdminRoot() {
     val store = LocalStore.current
 
-    // (المعرّف الأصلي في iOS، العنصر)
+    // التبويبات الرئيسية + «المزيد» (شريط الأندرويد يتّسع لخمسة تقريباً)
     val entries = buildList {
         add(0 to TabItem("نظرة عامة", "chart.bar.fill"))
         if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
-            add(6 to TabItem("الخريطة", "map.fill"))
-        if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
             add(1 to TabItem("الطلبات", "shippingbox.fill"))
-        if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
-            add(7 to TabItem("سجل الصور", "photo"))
-        if (store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers)) {
+        if (store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers))
             add(2 to TabItem("المستخدمون", "person.2.fill"))
-            add(5 to TabItem("طلبات الحذف", "person.fill.xmark"))
-        }
+        add(20 to TabItem("المزيد", "ellipsis.circle.fill"))
+    }
+    var more by remember { mutableStateOf<Int?>(null) }
+    val moreItems = buildList {
+        val ord = store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders)
+        val usr = store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers)
+        if (ord) { add(6 to "الخريطة المباشرة"); add(8 to "تتبّع الطلبات"); add(7 to "سجل الصور") }
+        if (store.can(AdminPermission.manageDrivers)) add(9 to "السحوبات")
+        if (usr) { add(5 to "طلبات الحذف") }
+        if (store.can(AdminPermission.manageAdmins)) add(10 to "الرتب")
         if (store.can(AdminPermission.managePricing) || store.can(AdminPermission.manageRewards) ||
-            store.can(AdminPermission.manageAdmins))
-            add(3 to TabItem("الإعدادات", "slider.horizontal.3"))
-        if (store.can(AdminPermission.manageSupport))
-            add(4 to TabItem("الدعم", "lifepreserver.fill"))
+            store.can(AdminPermission.manageAdmins)) add(3 to "الإعدادات")
+        if (store.can(AdminPermission.manageSupport)) add(4 to "الدعم")
     }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) {
@@ -70,19 +74,40 @@ fun AdminRoot() {
         TabScaffold(
             tabs = entries.map { it.second },
             selected = index,
-            onSelect = { selectedValue = entries[it].first },
+            onSelect = { selectedValue = entries[it].first; if (entries[it].first == 20) more = null },
             accessory = { AdminLiveAccessory() },
         ) { i ->
             when (entries.getOrNull(i)?.first) {
-                0 -> AdminOverview()
-                6 -> AdminLiveMap()
-                1 -> AdminOrders()
-                7 -> AdminProofs()
-                2 -> AdminAccounts()
-                5 -> AdminDeletionRequests()
-                3 -> AdminSettings()
-                4 -> AdminSupport()
-                else -> AdminOverview()
+                0 -> AdminServerOverview()
+                1 -> AdminServerOrders()
+                2 -> {
+                    var drv by remember { mutableStateOf(true) }
+                    androidx.compose.foundation.layout.Column {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AdminChip("المناديب", drv) { drv = true }
+                            AdminChip("الزبائن", !drv) { drv = false }
+                        }
+                        AdminServerPeople(drivers = drv)
+                    }
+                }
+                20 -> {
+                    val m = more
+                    if (m == null) MoreMenu(moreItems) { more = it }
+                    else {
+                        androidx.activity.compose.BackHandler { more = null }
+                        when (m) {
+                            6 -> AdminLiveMap()
+                            8 -> AdminServerTrace()
+                            7 -> AdminProofs()
+                            9 -> AdminServerPayouts()
+                            5 -> AdminServerDeletions()
+                            10 -> AdminServerRanks()
+                            3 -> AdminServerSettings()
+                            4 -> AdminSupport()
+                        }
+                    }
+                }
+                else -> AdminServerOverview()
             }
         }
     }
@@ -108,6 +133,21 @@ fun AdminLiveAccessory() {
         store.currentAdmin?.let { a ->
             MBChip(a.role.title, symbol = a.role.symbol,
                 tint = if (a.role == AdminRole.owner) MB.gold else MB.green, filled = true)
+        }
+    }
+}
+
+@Composable
+private fun MoreMenu(items: List<Pair<Int, String>>, onPick: (Int) -> Unit) {
+    PanelScreen("المزيد") {
+        items.forEach { (k, t) ->
+            PanelCard {
+                Row(Modifier.fillMaxWidth().clickable { onPick(k) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("‹", style = MBType.callout, color = MB.ink3)
+                    Spacer(Modifier.weight(1f))
+                    Text(t, style = MBType.callout, color = MB.ink)
+                }
+            }
         }
     }
 }
