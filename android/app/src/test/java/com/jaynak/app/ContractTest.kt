@@ -213,7 +213,7 @@ class ContractTest {
     fun `الأرقام العربية تُحوَّل وإلا بدا الزرّ معطّلاً`() {
         assertEquals("1234", normalizeDigits("١٢٣٤"))
         assertEquals("1234", normalizeDigits("۱۲۳۴"))
-        assertEquals("98061051", normalizeDigits("+968 9806-1051").removePrefix("968"))
+        assertEquals("94202204", normalizeDigits("+968 9420-2204").removePrefix("968"))
         println("✓ ٠-٩ و۰-۹ تُحوَّل")
     }
 }

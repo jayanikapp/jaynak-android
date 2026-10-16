@@ -29,8 +29,6 @@ object AppConfig {
 
     const val platformCommissionRate: Double = 0.18
 
-    const val demoAdminPhone = "98061051"
-
     const val ownerPhone = "94202204"
 
     /** DEBUG أو DEMO_ACCESS فقط — مقابل #if DEBUG / DEMO_ACCESS. */

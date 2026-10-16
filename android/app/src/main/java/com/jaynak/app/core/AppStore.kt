@@ -86,7 +86,7 @@ class AppStore {
             tickets = s.tickets; chats = s.chats; session = s.session
             admins = s.admins; rewards = s.rewards; vouchers = s.vouchers
             deletionRequests = s.deletionRequests
-            admins = admins.filter { it.phone != AppConfig.demoAdminPhone }
+            admins = admins.filter { it.phone != "98061051" }   // حساب المراجعة القديم — حُذف نهائياً
             identities = s.identities
             if (admins.isEmpty()) {
                 admins = listOf(
@@ -149,12 +149,6 @@ class AppStore {
     fun normalize(raw: String): String =
         raw.digitsOnly.takeLast(AppConfig.nationalNumberLength)
 
-    val isDemoAdminPhone: Boolean
-        get() {
-            val p = challenge?.phone ?: return false
-            return p == AppConfig.demoAdminPhone
-        }
-
     enum class AuthOutcome {
         /** دخل مباشرة بلا رمز (حساب العرض) */
         enteredDirectly,
@@ -172,13 +166,6 @@ class AppStore {
         if (phone.length != AppConfig.nationalNumberLength) {
             authError = "رقم الهاتف يجب أن يكون ${AppConfig.nationalNumberLength} أرقام"
             return AuthOutcome.failed
-        }
-
-        // رقم العرض التجريبي — وليس رقم المالك الحقيقي.
-        if (phone == AppConfig.demoAdminPhone && AppConfig.demoAdminBypassEnabled) {
-            signInAdmin(phone, viaDemo = true)
-            challenge = null
-            return AuthOutcome.enteredDirectly
         }
 
         // حساب الإدارة يدخل برقمه أياً كان الدور المختار.
@@ -431,11 +418,7 @@ class AppStore {
                     phone = d.phone, viaDemoAccess = true)
                 toast = Toast(text = "دخلت كمندوب تجريبي: ${d.name}", kind = Toast.Kind.success)
             }
-            UserRole.admin -> {
-                session = Session(role = UserRole.admin, phone = AppConfig.demoAdminPhone,
-                    viaDemoAccess = true)
-                toast = Toast(text = "دخلت لوحة الإدارة — حساب عرض تجريبي", kind = Toast.Kind.success)
-            }
+            UserRole.admin -> return
         }
         challenge = null
         Feedback.success()
