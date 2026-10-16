@@ -2262,10 +2262,16 @@ class AppStore {
 
     /** يرسل طلب الحذف للسيرفر ليراه المالك في اللوحة ويقرّر. */
     suspend fun sendDeletionToServer(reason: String, role: String, name: String) {
-        if (!OrdersService.isAvailable) return
-        runCatching {
+        if (!OrdersService.isAvailable) {
+            toast = Toast(text = "تعذّر إرسال طلب الحذف: لا توجد جلسة مع السيرفر — سجّل الدخول من جديد", kind = Toast.Kind.error)
+            return
+        }
+        try {
             OrdersService.send("api/account/delete-request", "POST",
                 org.json.JSONObject().put("role", role).put("reason", reason).put("name", name))
+            toast = Toast(text = "وصل طلب الحذف للإدارة", kind = Toast.Kind.success)
+        } catch (e: Exception) {
+            toast = Toast(text = "تعذّر إرسال طلب الحذف: ${e.message}", kind = Toast.Kind.error)
         }
     }
 
