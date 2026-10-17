@@ -369,9 +369,10 @@ class AppStore {
                     drivers = drivers + Driver(
                         name = d.optString("name").ifEmpty { "مندوب ${phone.takeLast(4)}" },
                         phone = phone, coord = Geo.cityCenter, approval = ap,
-                        docs = DriverDocuments(adminVerified = d.optBoolean("adminCreated", false)),
+                        docs = DriverDocuments(adminVerified = d.optBoolean("adminCreated", false) || d.optBoolean("docsComplete", false)),
                         earningsBalance = d.optDouble("earningsBalance", 0.0),
                     )
+                    applyDriverProfile(d, drivers.lastIndex)   // المنطقة والمركبة والرقم المدني
                     save()
                 }
                 else -> {}
@@ -1025,7 +1026,7 @@ class AppStore {
                 }
                 if (di >= 0) applyDriverProfile(dj, di)
                 // حساب أنشأته الإدارة: يدخل مباشرة دون رفع مستندات
-                if (di >= 0 && dj.optBoolean("adminCreated", false) && !drivers[di].docs.adminVerified) {
+                if (di >= 0 && (dj.optBoolean("adminCreated", false) || dj.optBoolean("docsComplete", false)) && !drivers[di].docs.adminVerified) {
                     drivers = drivers.mapAt(di) { it.copy(docs = it.docs.copy(adminVerified = true)) }
                     save()
                 }
