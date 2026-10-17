@@ -1146,6 +1146,9 @@ class AppStore {
                     status = if (keepLocal) it.status else status,
                     driverID = if (remote.driverID != null && status.isLive) did else it.driverID,
                     offeredTo = if (asBoard || it.offeredTo.contains(did)) it.offeredTo else it.offeredTo + did,
+                    // السيرفر هو المرجع: ظهور الطلب في عروضي بعد رفضي بمدة = أعادت الإدارة توزيعه
+                    declinedBy = if (!asBoard && did in it.declinedBy && nowMs() - (declineAt[it.id] ?: 0L) > 15000)
+                        it.declinedBy - did else it.declinedBy,
                 )
             }
             return
@@ -1604,8 +1607,11 @@ class AppStore {
         confirmAcceptOnServer(order)
     }
 
+    private val declineAt = mutableMapOf<Id, Long>()
+
     fun declineOffer(order: Order) {
         val did = session?.driverID ?: return
+        declineAt[order.id] = nowMs()
         val i = orders.indexOfFirst { it.id == order.id }
         if (i < 0) return
         orders = orders.mapAt(i) {
