@@ -48,6 +48,8 @@ fun AdminServerPeople(drivers: Boolean) {
     var detail by remember { mutableStateOf<JSONObject?>(null) }
     var docs by remember { mutableStateOf<String?>(null) }
     var showNew by remember { mutableStateOf(false) }
+    var delTarget by remember { mutableStateOf<JSONObject?>(null) }
+    var delForce by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     suspend fun load() { data = Panel.get("api/admin/people"); loading = false }
 
@@ -99,6 +101,7 @@ fun AdminServerPeople(drivers: Boolean) {
                         PanelButton("التفاصيل") { detail = u }
                         PanelButton("المستندات", MB.ink2) { docs = u.ps("phone") }
                         PanelButton("تعديل الرصيد/النقاط", MB.gold) { adjust = u }
+                        PanelButton("حذف الحساب", MB.red) { delForce = false; delTarget = u }
                     }
                 } else {
                     PanelKV("المحفظة", Panel.omr(u.pd("walletBalance")))
@@ -109,6 +112,7 @@ fun AdminServerPeople(drivers: Boolean) {
                     PanelActions {
                         PanelButton("تعديل المحفظة/النقاط", MB.gold) { adjust = u }
                         PanelButton("التفاصيل") { detail = u }
+                        PanelButton("حذف الحساب", MB.red) { delForce = false; delTarget = u }
                     }
                 }
             }
@@ -123,6 +127,30 @@ fun AdminServerPeople(drivers: Boolean) {
                     load()
                 }
             }, onDismiss = { pending = null })
+    }
+    delTarget?.let { u ->
+        ConfirmDialog(
+            if (delForce) "لديه طلبات جارية أو سحب معلّق" else "هل أنت متأكد من حذف الحساب؟",
+            if (delForce) "الحذف القسري سيُلغي طلباته الجارية. هل أنت متأكد؟"
+            else "${u.ps("name").ifEmpty { u.ps("phone") }}: سيُمسح الحساب وكل بياناته وسجلاته نهائياً ولا يمكن التراجع.",
+            confirmText = "نعم، احذف نهائياً", destructive = true,
+            onConfirm = {
+                val force = delForce
+                delTarget = null
+                scope.launch {
+                    try {
+                        Panel.post("api/admin/delete-account", jsonOf("phone" to u.ps("phone"),
+                            "role" to (if (drivers) "driver" else "customer"), "confirm" to true, "force" to force))
+                        store.toast = com.jaynak.app.core.AppStore.Toast(text = "تم حذف الحساب وكل بياناته نهائياً", kind = com.jaynak.app.core.AppStore.Toast.Kind.success)
+                        load()
+                    } catch (e: Exception) {
+                        val m = e.message ?: "تعذّر الحذف"
+                        if (!force && (m.contains("طلب جارٍ") || m.contains("سحب معلّق"))) { delForce = true; delTarget = u }
+                        else store.toast = com.jaynak.app.core.AppStore.Toast(text = m, kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+                    }
+                }
+            },
+            onDismiss = { delTarget = null })
     }
     adjust?.let { u -> AdjustSheet(u, if (drivers) "driver" else "customer", { load() }) { adjust = null } }
     detail?.let { u -> UserDetailSheet(u, if (drivers) "driver" else "customer") { detail = null } }
