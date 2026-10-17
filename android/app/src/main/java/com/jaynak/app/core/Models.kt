@@ -124,8 +124,29 @@ data class AdminUser(
 
     val createdByName: String? = null,
     val lastSignIn: Long? = null,
+    /** أقسام اللوحة المسموحة كما يحددها السيرفر؛ null = حسب الدور. */
+    val tabs: List<String>? = null,
 ) {
-    val can: Set<AdminPermission> get() = if (isActive) role.permissions else emptySet()
+    val can: Set<AdminPermission>
+        get() {
+            if (!isActive) return emptySet()
+            if (role == AdminRole.owner) return role.permissions
+            val t = tabs ?: return role.permissions
+            return t.flatMap { AdminTabs.permissions(it) }.toSet()
+        }
+}
+
+object AdminTabs {
+    fun permissions(tab: String): Set<AdminPermission> = when (tab) {
+        "over" -> setOf(AdminPermission.viewOverview)
+        "map", "trace", "proofs" -> setOf(AdminPermission.viewOrders)
+        "orders" -> setOf(AdminPermission.viewOrders, AdminPermission.manageOrders)
+        "drivers" -> setOf(AdminPermission.manageDrivers)
+        "cust" -> setOf(AdminPermission.manageCustomers, AdminPermission.viewFinance)
+        "support" -> setOf(AdminPermission.manageSupport)
+        "payouts" -> setOf(AdminPermission.viewFinance)
+        else -> emptySet()
+    }
 }
 
 @Serializable

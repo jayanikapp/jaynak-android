@@ -103,9 +103,23 @@ fun NewOrderView(
     var submitAfterLogin by remember { mutableStateOf(false) }
     var createTrigger by remember { mutableStateOf(0) }
 
+    var serverQ by remember { mutableStateOf<PriceBreakdown?>(null) }
+    var serverKey by remember { mutableStateOf("") }
+    var promoError by remember { mutableStateOf<String?>(null) }
+    val qKey = "${pickup?.coord?.lat},${pickup?.coord?.lon}|${dropoff?.coord?.lat},${dropoff?.coord?.lon}|$kind|$promoText|${voucher?.id}|$dispatchMode"
+    androidx.compose.runtime.LaunchedEffect(Unit) { store.pullRules(); store.pullWallet() }
+    androidx.compose.runtime.LaunchedEffect(qKey) {
+        val p = pickup; val d = dropoff
+        if (p == null || d == null) return@LaunchedEffect
+        kotlinx.coroutines.delay(350)
+        store.serverQuote(p, d, kind, dispatchMode == DispatchMode.nearby, promoText, voucher)?.let { (price, err) ->
+            serverQ = price; serverKey = qKey; promoError = err
+        }
+    }
     val quote: PriceBreakdown? = run {
         val p = pickup; val d = dropoff
         if (p == null || d == null) null
+        else if (serverQ != null && serverKey == qKey) serverQ
         else store.quote(p, d, kind, promoText, voucher, express = dispatchMode == DispatchMode.nearby)
     }
     val walletBalance = store.currentCustomer?.walletBalance ?: 0.0
@@ -322,6 +336,7 @@ fun NewOrderView(
                         Box(Modifier.padding(top = 24.dp)) { SFIcon("xmark.circle.fill", size = 18.dp, tint = MB.red) }
                     }
                 }
+                promoError?.takeIf { promoText.isNotEmpty() }?.let { Text(it, style = MBType.micro, color = MB.red) }
 
                 // بطاقة السعر
                 if (quote != null) {

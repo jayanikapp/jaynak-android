@@ -69,6 +69,7 @@ fun AdminRoot() {
     }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) {
+            store.refreshStaff()
             store.refreshAdminPeople()
             kotlinx.coroutines.delay(8000)
         }
@@ -181,6 +182,11 @@ fun AdminLiveAccessory() {
             MBChip(a.role.title, symbol = a.role.symbol,
                 tint = if (a.role == AdminRole.owner) MB.gold else MB.green, filled = true)
         }
+        var ask by remember { mutableStateOf(false) }
+        com.jaynak.app.design.GlassIconButton("rectangle.portrait.and.arrow.right", { ask = true }, size = 34.dp, iconSize = 13.dp, tint = MB.red)
+        if (ask) com.jaynak.app.design.ConfirmDialog(
+            title = "تسجيل الخروج", message = "هل تريد الخروج من حساب الإدارة؟", confirmText = "خروج",
+            onConfirm = { ask = false; store.signOut() }, onDismiss = { ask = false }, destructive = true)
     }
 }
 

@@ -268,7 +268,51 @@ class AppStore {
             verifiedPhone = null
             return if (session != null) VerifyOutcome.signedIn else VerifyOutcome.failed
         }
+        if (signInStaffFromServer(phone)) {
+            challenge = null
+            verifiedPhone = null
+            return VerifyOutcome.signedIn
+        }
         return VerifyOutcome.needsRole
+    }
+
+    /** بعد التحقق: هل الرقم مالك أو عضو فريق على السيرفر؟ نبني له حساب إدارة محلياً. */
+    suspend fun signInStaffFromServer(phone: String): Boolean {
+        if (!OrdersService.isAvailable) return false
+        val j = runCatching { OrdersService.send("site/me", "GET", null) }.getOrNull() ?: return false
+        if (!j.optBoolean("isStaff")) return false
+        applyStaff(phone, j)
+        signInAdmin(phone, viaDemo = false)
+        return session != null
+    }
+
+    private fun applyStaff(phone: String, j: org.json.JSONObject) {
+        val role = j.optString("role")
+        val tabs = j.optJSONArray("tabs")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+        val tabsV = if (role == "owner") null else tabs
+        val i = admins.indexOfFirst { it.phone == phone }
+        if (i >= 0) {
+            admins = admins.mapAt(i) { it.copy(isActive = true, role = if (role == "owner") AdminRole.owner else if (it.role == AdminRole.owner) AdminRole.support else it.role, tabs = tabsV) }
+        } else {
+            admins = admins + AdminUser(
+                name = j.optString("roleTitle").ifEmpty { "مسؤول ${phone.takeLast(4)}" },
+                phone = phone, role = if (role == "owner") AdminRole.owner else AdminRole.support, tabs = tabsV)
+        }
+    }
+
+    /** يطابق صلاحيات الجلسة الحالية مع السيرفر؛ إن سُحبت الصلاحية يخرج المستخدم. */
+    suspend fun refreshStaff() {
+        val s = session ?: return
+        if (s.role != UserRole.admin || !OrdersService.isAvailable) return
+        val phone = s.phone ?: return
+        val j = runCatching { OrdersService.send("site/me", "GET", null) }.getOrNull() ?: return
+        if (!j.optBoolean("isStaff")) {
+            toast = Toast(text = "أُلغيت صلاحية الإدارة لهذا الرقم", kind = Toast.Kind.error)
+            signOut()
+            return
+        }
+        applyStaff(phone, j)
+        save()
     }
 
     /** هل لهذا الرقم حساب بهذا الدور أصلاً؟ */
@@ -505,6 +549,74 @@ class AppStore {
         promo = promo(promoText, session?.customerID), voucher = voucher, express = express,
     )
 
+    // ───────── محفظة الزبون من السيرفر ─────────
+    val serverVoucherIDs = mutableMapOf<String, String>()
+    val serverRewardIDs = mutableMapOf<String, String>()
+    private fun stableId(s: String): String = java.util.UUID.nameUUIDFromBytes(s.toByteArray()).toString()
+
+    suspend fun pullWallet() {
+        if (!OrdersService.isAvailable) return
+        val cid = session?.customerID ?: return
+        val j = runCatching { OrdersService.send("api/wallet", "GET", null) }.getOrNull() ?: return
+        val ci = customers.indexOfFirst { it.id == cid }
+        if (ci < 0) return
+        customers = customers.mapAt(ci) {
+            it.copy(walletBalance = j.optDouble("balance", it.walletBalance),
+                points = j.optInt("points", it.points),
+                lifetimePoints = j.optInt("lifetimePoints", it.lifetimePoints))
+        }
+        val rids = mutableMapOf<String, String>()
+        val rs = mutableListOf<Reward>()
+        j.optJSONArray("rewards")?.let { a ->
+            for (i in 0 until a.length()) {
+                val r = a.optJSONObject(i) ?: continue
+                val sid = r.optString("id"); if (sid.isEmpty()) continue
+                val kind = RewardKind.values().firstOrNull { it.name == r.optString("kind") } ?: continue
+                val id = stableId("reward:$sid"); rids[id] = sid
+                rs += Reward(id = id, title = r.optString("title"), detail = r.optString("detail"),
+                    cost = r.optInt("cost"), kind = kind, value = r.optDouble("value", 0.0),
+                    maxDiscount = r.optDouble("maxDiscount", 0.0), validDays = 365,
+                    isActive = r.optBoolean("enabled", true))
+            }
+        }
+        serverRewardIDs.clear(); serverRewardIDs.putAll(rids)
+        rewards = rs
+        val vids = mutableMapOf<String, String>()
+        val vs = mutableListOf<Voucher>()
+        j.optJSONArray("vouchers")?.let { a ->
+            for (i in 0 until a.length()) {
+                val v = a.optJSONObject(i) ?: continue
+                val sid = v.optString("id"); if (sid.isEmpty()) continue
+                val kind = RewardKind.values().firstOrNull { it.name == v.optString("kind") } ?: continue
+                val id = stableId("voucher:$sid"); vids[id] = sid
+                val issued = (v.optDouble("issuedAt", 0.0) * 1000).toLong()
+                vs += Voucher(id = id, customerID = cid, rewardTitle = v.optString("rewardTitle"),
+                    kind = kind, value = v.optDouble("value", 0.0), maxDiscount = v.optDouble("maxDiscount", 0.0),
+                    earnedAt = issued, expiresAt = issued + 365 * DAY_MS)
+            }
+        }
+        serverVoucherIDs.clear(); serverVoucherIDs.putAll(vids)
+        vouchers = vouchers.filter { it.customerID != cid } + vs
+        save()
+    }
+
+    /** سعر الطلب من السيرفر (يشمل كود الخصم/القسيمة) أو null إن لم يتوفر. */
+    suspend fun serverQuote(
+        pickup: Place, dropoff: Place, kind: OrderKind, express: Boolean,
+        promo: String, voucher: Voucher?,
+    ): Pair<PriceBreakdown, String?>? {
+        if (!OrdersService.isAvailable) return null
+        val (p, err) = runCatching {
+            OrdersService.quote(kind.name, point(pickup), point(dropoff), express, promo,
+                voucher?.let { serverVoucherIDs[it.id] })
+        }.getOrNull() ?: return null
+        return PriceBreakdown(base = p.base, distance = p.distance, time = p.time,
+            zoneSurcharge = p.zoneSurcharge, kindAdjustment = p.kindAdjustment, surge = p.surge,
+            discount = p.discount, total = p.total, km = p.km, minutes = p.minutes,
+            commission = p.commission, driverPayout = p.driverPayout,
+            promoCode = p.promo, voucherTitle = p.voucherTitle) to err
+    }
+
     /** يسحب قواعد الإدارة (الأسعار والحدود) من السيرفر — غير الإدارة فقط. */
     suspend fun pullRules(force: Boolean = false) {
         if (!OrdersService.isAvailable) return
@@ -622,13 +734,13 @@ class AppStore {
         save()
 
         // يرفع الطلب للخادم ليراه المندوبون على أجهزتهم الأخرى.
-        publishToServer(order)
+        publishToServer(order, promoText, voucher)
 
         return order
     }
 
     /** يرسل الطلب للخادم ويحفظ معرّفه البعيد عند النجاح. */
-    private fun publishToServer(order: Order) {
+    private fun publishToServer(order: Order, promo: String = "", voucher: Voucher? = null) {
         if (!OrdersService.isAvailable) {
             toast = Toast(
                 text = "الطلب لم يُرسل للسيرفر — حسابك غير مربوط به (" +
@@ -648,6 +760,8 @@ class AppStore {
                     recipientPhone = order.recipientPhone,
                     recipientName = order.recipientName,
                     dispatchMode = if (order.dispatchMode == DispatchMode.open) "open" else "nearby",
+                    promo = promo,
+                    voucherID = voucher?.let { serverVoucherIDs[it.id] },
                 )
                 val i = orders.indexOfFirst { it.id == id }
                 if (i >= 0) {
@@ -659,7 +773,9 @@ class AppStore {
                                 total = rp.total, km = rp.km, minutes = rp.minutes,
                                 base = rp.base, distance = rp.distance, time = rp.time,
                                 commission = rp.commission, driverPayout = rp.driverPayout,
-                                zoneSurcharge = 0.0, kindAdjustment = 0.0, surge = 0.0, discount = 0.0)
+                                zoneSurcharge = rp.zoneSurcharge, kindAdjustment = rp.kindAdjustment,
+                                surge = rp.surge, discount = rp.discount,
+                                voucherTitle = rp.voucherTitle, promoCode = rp.promo)
                             else it.price)
                     }
                     save()
@@ -912,6 +1028,7 @@ class AppStore {
 
     /** الزبون: يجلب حالة طلباته من السيرفر (قبول، استلام، تسليم، إلغاء). */
     suspend fun refreshMyOrders() {
+        pullWallet()
         if (!OrdersService.isAvailable) return
         val cid = session?.customerID ?: return
         pullRules()
@@ -1824,6 +1941,26 @@ class AppStore {
         val ci = customers.indexOfFirst { it.id == cid }
         if (ci < 0) return false
         if (!reward.isActive) return false
+        val sid = serverRewardIDs[reward.id]
+        if (sid != null) {
+            if (customers[ci].points < reward.cost) {
+                toast = Toast(text = "نقاطك لا تكفي — تحتاج ${reward.cost - customers[ci].points} نقطة", kind = Toast.Kind.error)
+                Feedback.warning(); return false
+            }
+            scope.launch {
+                try {
+                    val j = OrdersService.send("api/rewards/redeem", "POST", org.json.JSONObject().put("rewardID", sid))
+                    val title = j.optString("title").ifEmpty { reward.title }
+                    toast = Toast(text = if (j.optString("kind") == "credit") "أُضيف رصيد «$title» لمحفظتك"
+                        else "حصلت على «$title» — استخدمها في طلبك القادم", kind = Toast.Kind.success)
+                    Feedback.success()
+                    pullWallet()
+                } catch (e: Exception) {
+                    toast = Toast(text = e.message ?: "تعذّر الاستبدال", kind = Toast.Kind.error)
+                }
+            }
+            return true
+        }
         if (customers[ci].points < reward.cost) {
             toast = Toast(text = "نقاطك لا تكفي — تحتاج ${reward.cost - customers[ci].points} نقطة",
                 kind = Toast.Kind.error)

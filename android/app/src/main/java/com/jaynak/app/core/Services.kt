@@ -223,6 +223,12 @@ object OrdersService {
         val total: Double = 0.0,
         val commission: Double = 0.0,
         val driverPayout: Double = 0.0,
+        val zoneSurcharge: Double = 0.0,
+        val kindAdjustment: Double = 0.0,
+        val surge: Double = 0.0,
+        val discount: Double = 0.0,
+        val voucherTitle: String? = null,
+        val promo: String? = null,
     )
 
     @Serializable
@@ -261,6 +267,8 @@ object OrdersService {
         recipientPhone: String,
         dispatchMode: String,
         recipientName: String = "",
+        promo: String = "",
+        voucherID: String? = null,
     ): RemoteOrder {
         val body = JSONObject()
             .put("kind", kind)
@@ -271,9 +279,27 @@ object OrdersService {
             .put("recipientPhone", recipientPhone)
             .put("recipientName", recipientName)
             .put("dispatchMode", dispatchMode)
+        if (voucherID != null) body.put("voucherID", voucherID)
+        else if (promo.isNotBlank()) body.put("promo", promo.trim())
         val json = send("api/orders", "POST", body)
         val raw = json.optJSONObject("order") ?: throw Failure.Server("ردّ غير متوقّع من السيرفر")
         return Net.json.decodeFromString(RemoteOrder.serializer(), raw.toString())
+    }
+
+    /** سعر الطلب من السيرفر مع كود الخصم/القسيمة. */
+    suspend fun quote(
+        kind: String, pickup: Point, dropoff: Point, express: Boolean,
+        promo: String, voucherID: String?,
+    ): Pair<RemotePrice, String?> {
+        val body = JSONObject().put("kind", kind).put("pickup", encode(pickup)).put("dropoff", encode(dropoff))
+            .put("dispatchMode", if (express) "nearby" else "open")
+        if (voucherID != null) body.put("voucherID", voucherID)
+        else if (promo.isNotBlank()) body.put("promo", promo.trim())
+        val json = send("api/quote", "POST", body)
+        val price = Net.json.decodeFromString(RemotePrice.serializer(), json.toString())
+        val p = json.optString("promo").takeIf { it.isNotEmpty() && it != "null" }
+        val err = json.optString("promoError").takeIf { it.isNotEmpty() && it != "null" }
+        return price.copy(promo = p ?: price.promo) to err
     }
 
     suspend fun mine(): List<RemoteOrder> {
