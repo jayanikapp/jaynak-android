@@ -36,6 +36,7 @@ import com.jaynak.app.core.AppConfig
 import com.jaynak.app.core.DriverPresence
 import com.jaynak.app.core.Order
 import com.jaynak.app.core.OrderStatus
+import com.jaynak.app.core.DispatchMode
 import com.jaynak.app.core.PaymentMethod
 import com.jaynak.app.core.money
 import com.jaynak.app.core.moneyShort
@@ -135,6 +136,7 @@ fun DriverHome(onOpenTrip: () -> Unit) {
 
             Box(Modifier.fillMaxWidth().appearIn(1)) {
                 if (actives.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (actives.size > 1) MyOrdersSummary(actives)
                     actives.forEach { key(it.id) { ActiveTripCard(it) } }
                     PresenceCard()
                 } else PresenceCard()
@@ -370,5 +372,37 @@ fun ActiveTripCard(order: Order) {
     if (showChat) {
         ChatView("order-${order.id}", customer?.name ?: "العميل", order.ref,
             com.jaynak.app.core.UserRole.driver, moderatable = true, onDismiss = { showChat = false })
+    }
+}
+
+
+/** قائمة مختصرة بكل الطلبات التي استلمها المندوب، مرتبة بالأقرب أولاً، ليعرف من أين يبدأ. */
+@Composable
+private fun MyOrdersSummary(actives: List<Order>) {
+    val store = LocalStore.current
+    val me = store.currentDriver
+    fun target(o: Order) = if (o.status == OrderStatus.pickedUp || o.status == OrderStatus.delivering) o.dropoff else o.pickup
+    fun km(o: Order) = me?.coord?.km(target(o).coord) ?: 0.0
+    val sorted = actives.sortedBy { km(it) }
+    GlassCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.End) {
+            SectionHeader("طلباتي الجارية (${actives.size})", symbol = "list.bullet.rectangle.portrait.fill")
+            sorted.forEachIndexed { i, o ->
+                Column(Modifier.fillMaxWidth().glassSurface(14.dp, null, 0.04f).padding(11.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(o.price.driverPayout.moneyShort, style = MBType.num(14, FontWeight.Bold), color = MB.green)
+                        Spacer(Modifier.weight(1f))
+                        MBChip(o.status.title, tint = MB.red)
+                        val express = o.dispatchMode == DispatchMode.nearby && !o.promotedToOpen
+                        MBChip(if (express) "⚡ سريع" else "مفتوح", tint = if (express) MB.gold else MB.ink2)
+                        if (i == 0) MBChip("الأقرب", symbol = "location.fill", tint = MB.green, filled = true)
+                    }
+                    Text("${o.pickup.name} ← ${o.dropoff.name}", style = MBType.callout, color = MB.ink)
+                    Text("${o.ref} · ${target(o).name} · ${"%.1f".format(java.util.Locale.US, km(o))} كم منك",
+                        style = MBType.micro, color = MB.ink2)
+                }
+            }
+        }
     }
 }
