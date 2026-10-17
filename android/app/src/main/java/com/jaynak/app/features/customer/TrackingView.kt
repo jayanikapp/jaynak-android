@@ -213,7 +213,10 @@ fun TrackingView(orderID: String, onClose: () -> Unit) {
     if (showCancel) {
         ActionDialog(
             title = "إلغاء الطلب؟",
-            message = "الإلغاء بعد تعيين المندوب قد يترتّب عليه رسم.",
+            message = store.pointsRules.let { r ->
+                if (r.enabled && (r.cCancelBefore > 0 || r.cCancelAfter > 0))
+                    "الإلغاء قبل قبول المندوب يخصم ${r.cCancelBefore} نقطة، وبعد القبول يخصم ${r.cCancelAfter} نقطة."
+                else "الإلغاء بعد تعيين المندوب قد يترتّب عليه رسم." },
             actions = listOf("تغيّرت خطتي", "المندوب تأخّر", "أخطأت في العنوان", "سبب آخر").map { r ->
                 DialogAction(r, destructive = true) { order?.let { store.cancelOrder(it, r, UserRole.customer) } }
             },

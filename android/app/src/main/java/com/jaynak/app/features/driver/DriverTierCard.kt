@@ -116,12 +116,12 @@ fun DriverTierCard(driver: Driver, expanded: Boolean = true, modifier: Modifier 
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp),
                     horizontalAlignment = Alignment.End) {
                     Text("كيف تتغيّر النقاط", style = MBType.callout, color = MB.ink)
-                    PointRow("توصيلة مكتملة", Loyalty.tierPointsPerDelivery)
-                    PointRow("تقييم ٥ نجوم", Loyalty.tierPoints(5))
-                    PointRow("تقييم ٤ نجوم", Loyalty.tierPoints(4))
-                    PointRow("تقييم نجمتين", Loyalty.tierPoints(2))
-                    PointRow("تقييم نجمة", Loyalty.tierPoints(1))
-                    PointRow("إلغاء طلب قبلته", Loyalty.tierPenaltyForCancel)
+                    val pr = store.pointsRules
+                    if (pr.dAccept != 0) PointRow("قبول طلب", pr.dAccept)
+                    PointRow("توصيلة مكتملة", pr.dDelivered)
+                    if (pr.dDeclineBefore != 0) PointRow("رفض طلب قبل قبوله", -pr.dDeclineBefore)
+                    if (pr.dCancelAfter != 0) PointRow("إلغاء طلب قبلته", -pr.dCancelAfter)
+                    store.pointsHistory.take(6).forEach { e -> PointRow(e.label, e.delta) }
                 }
             }
         }

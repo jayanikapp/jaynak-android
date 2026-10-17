@@ -305,3 +305,34 @@ sealed class IdentityCheck {
         fun phoneTaken(name: String): IdentityCheck = PhoneTaken(name)
     }
 }
+
+
+/** قواعد النقاط من السيرفر (الافتراضي = السلوك السابق). */
+data class PointsRules(
+    val enabled: Boolean = true,
+    val cDelivered: Int = 10, val cPerRial: Int = 10, val cCancelBefore: Int = 0, val cCancelAfter: Int = 20,
+    val dAccept: Int = 0, val dDelivered: Int = 10, val dDeclineBefore: Int = 0, val dCancelAfter: Int = 10,
+) {
+    fun customerEarned(total: Double): Int =
+        if (enabled) cDelivered + floor(total * cPerRial).toInt() else 0
+
+    /** role = "customer" | "driver" لشكل api/points، وnull لشكل الإعدادات (الدوران معاً). */
+    fun merged(role: String?, j: org.json.JSONObject): PointsRules {
+        var r = if (j.has("enabled")) copy(enabled = j.optBoolean("enabled", enabled)) else this
+        j.optJSONObject("customer")?.let { c ->
+            r = r.copy(cDelivered = c.optInt("delivered", r.cDelivered), cPerRial = c.optInt("perRial", r.cPerRial),
+                cCancelBefore = c.optInt("cancelBeforeAccept", r.cCancelBefore), cCancelAfter = c.optInt("cancelAfterAccept", r.cCancelAfter))
+        }
+        j.optJSONObject("driver")?.let { d ->
+            r = r.copy(dAccept = d.optInt("accept", r.dAccept), dDelivered = d.optInt("delivered", r.dDelivered),
+                dDeclineBefore = d.optInt("declineBeforeAccept", r.dDeclineBefore), dCancelAfter = d.optInt("cancelAfterAccept", r.dCancelAfter))
+        }
+        if (role == "customer") r = r.copy(cDelivered = j.optInt("delivered", r.cDelivered), cPerRial = j.optInt("perRial", r.cPerRial),
+            cCancelBefore = j.optInt("cancelBeforeAccept", r.cCancelBefore), cCancelAfter = j.optInt("cancelAfterAccept", r.cCancelAfter))
+        if (role == "driver") r = r.copy(dAccept = j.optInt("accept", r.dAccept), dDelivered = j.optInt("delivered", r.dDelivered),
+            dDeclineBefore = j.optInt("declineBeforeAccept", r.dDeclineBefore), dCancelAfter = j.optInt("cancelAfterAccept", r.dCancelAfter))
+        return r
+    }
+}
+
+data class PointsEntry(val id: String, val at: Double, val delta: Int, val label: String, val ref: String)

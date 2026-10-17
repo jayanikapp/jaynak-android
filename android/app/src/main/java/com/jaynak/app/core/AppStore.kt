@@ -35,6 +35,9 @@ class AppStore {
     var orders by mutableStateOf(listOf<Order>())
     var transactions by mutableStateOf(listOf<WalletTxn>())
     var rules by mutableStateOf(PricingRules())
+    /** قواعد النقاط وسجل الحركات من السيرفر (لا تُحفظ محلياً). */
+    var pointsRules by mutableStateOf(PointsRules())
+    var pointsHistory by mutableStateOf<List<PointsEntry>>(emptyList())
     var promos by mutableStateOf(listOf<PromoCode>())
     var tickets by mutableStateOf(listOf<SupportTicket>())
     var chats by mutableStateOf(listOf<ChatMessage>())
@@ -554,6 +557,33 @@ class AppStore {
     val serverRewardIDs = mutableMapOf<String, String>()
     private fun stableId(s: String): String = java.util.UUID.nameUUIDFromBytes(s.toByteArray()).toString()
 
+    /** يسحب رصيد النقاط وقواعدها وسجل الحركات من السيرفر (مصدر الحقيقة) للدور الحالي. */
+    suspend fun pullPoints() {
+        if (!OrdersService.isAvailable) return
+        val sess = session ?: return
+        if (sess.role == UserRole.admin) return
+        val role = if (sess.role == UserRole.driver) "driver" else "customer"
+        val j = runCatching { OrdersService.send("api/points?role=$role", "GET", null) }.getOrNull() ?: return
+        var pr = pointsRules
+        j.optJSONObject("rules")?.let { pr = pr.merged(role, it) }
+        if (j.has("enabled")) pr = pr.copy(enabled = j.optBoolean("enabled", pr.enabled))
+        if (pr != pointsRules) pointsRules = pr
+        val pts = j.optInt("points", 0)
+        if (role == "driver") {
+            val di = drivers.indexOfFirst { it.id == sess.driverID }
+            if (di >= 0 && drivers[di].tierPoints != pts) drivers = drivers.mapAt(di) { it.copy(tierPoints = pts) }
+        } else {
+            val ci = customers.indexOfFirst { it.id == sess.customerID }
+            if (ci >= 0) customers = customers.mapAt(ci) { it.copy(points = pts, lifetimePoints = j.optInt("lifetimePoints", it.lifetimePoints)) }
+        }
+        val h = j.optJSONArray("history")
+        pointsHistory = (0 until (h?.length() ?: 0)).mapNotNull { i ->
+            val e = h?.optJSONObject(i) ?: return@mapNotNull null
+            PointsEntry(e.optString("id", i.toString()), e.optDouble("at", 0.0), e.optInt("delta"),
+                e.optString("label"), e.optString("ref"))
+        }
+    }
+
     suspend fun pullWallet() {
         if (!OrdersService.isAvailable) return
         val cid = session?.customerID ?: return
@@ -565,6 +595,10 @@ class AppStore {
                 points = j.optInt("points", it.points),
                 lifetimePoints = j.optInt("lifetimePoints", it.lifetimePoints))
         }
+        var pr = pointsRules
+        if (j.has("pointsEnabled")) pr = pr.copy(enabled = j.optBoolean("pointsEnabled", pr.enabled))
+        j.optJSONObject("pointsRules")?.let { pr = pr.merged("customer", it) }
+        if (pr != pointsRules) pointsRules = pr
         val rids = mutableMapOf<String, String>()
         val rs = mutableListOf<Reward>()
         j.optJSONArray("rewards")?.let { a ->
@@ -942,6 +976,7 @@ class AppStore {
         checkDeletionStatus()
         if (session == null) return
         pullRules()
+        pullPoints()
         refreshChats()
         try {
             // اعتماد الإدارة يصل من السيرفر
@@ -1032,6 +1067,7 @@ class AppStore {
         if (!OrdersService.isAvailable) return
         val cid = session?.customerID ?: return
         pullRules()
+        pullPoints()
         refreshChats()
         try {
             val mine = OrdersService.mine()
@@ -1169,6 +1205,7 @@ class AppStore {
                         UserRole.admin -> OrdersService.send("api/admin/cancel", "POST", org.json.JSONObject().put("orderID", remote))
                         else -> OrdersService.cancel(remote)
                     }
+                    pullPoints(); pullWallet()
                 } catch (e: Exception) {
                     val j = orders.indexOfFirst { it.id == oid }
                     if (j >= 0) orders = orders.mapAt(j) { it.copy(status = prev, cancelledReason = null) }
@@ -1494,6 +1531,7 @@ class AppStore {
         scope.launch {
             try {
                 OrdersService.accept(remote)
+                pullPoints()
             } catch (e: Exception) {
                 val i = orders.indexOfFirst { it.id == order.id }
                 if (i >= 0) orders = orders.mapAt(i) {
@@ -1552,7 +1590,7 @@ class AppStore {
 
         val remote = orders[i].remoteID
         if (remote != null && OrdersService.isAvailable) {
-            scope.launch { runCatching { OrdersService.decline(remote) } }
+            scope.launch { runCatching { OrdersService.decline(remote) }; pullPoints() }
         }
 
         val next = Dispatch.candidates(orders[i], drivers, rules.minEarningsBalance)
@@ -1632,6 +1670,7 @@ class AppStore {
             scope.launch {
                 try {
                     OrdersService.advance(remote, expect)
+                    pullPoints()
                 } catch (e: Exception) {
                     val j = orders.indexOfFirst { it.id == oid }
                     if (j >= 0) orders = orders.mapAt(j) { it.copy(status = before) }
@@ -1654,7 +1693,7 @@ class AppStore {
         // نقاط الولاء للزبون
         val ci0 = customers.indexOfFirst { it.id == o.customerID }
         if (ci0 >= 0) {
-            val earned = Loyalty.points(o.price.total)
+            val earned = pointsRules.customerEarned(o.price.total)
             customers = customers.mapAt(ci0) {
                 it.copy(points = it.points + earned, lifetimePoints = it.lifetimePoints + earned)
             }
@@ -1681,7 +1720,7 @@ class AppStore {
                     it.copy(completedOrders = it.completedOrders + 1,
                         presence = DriverPresence.online, coord = o.dropoff.coord)
                 }
-                awardTierPoints(Loyalty.tierPointsPerDelivery, di, "توصيلة")
+                awardTierPoints(if (pointsRules.enabled) pointsRules.dDelivered else 0, di, "توصيلة")
 
                 val raw = if (o.dispatchMode == DispatchMode.nearby)
                     min(o.price.total, max(rules.minCommission, o.price.total * rules.expressCommissionPerRial))

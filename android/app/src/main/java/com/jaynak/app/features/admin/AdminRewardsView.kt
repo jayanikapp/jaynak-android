@@ -76,9 +76,9 @@ fun AdminRewardsView() {
         GlassCard(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
                 SectionHeader("قواعد كسب النقاط", symbol = "plus.forwardslash.minus")
-                KeyValueRow("لكل طلب مكتمل", "${Loyalty.pointsPerOrder} نقطة")
-                KeyValueRow("لكل ١ ر.ع.", "${Loyalty.pointsPerRial.toInt()} نقطة")
-                Text("تُعدَّل هذه القيم من Core/Loyalty.swift — مكان واحد لكل أرقام النظام.", style = MBType.micro, color = MB.ink3)
+                KeyValueRow("لكل طلب مكتمل", "${store.pointsRules.cDelivered} نقطة")
+                KeyValueRow("لكل ١ ر.ع.", "${store.pointsRules.cPerRial} نقطة")
+                Text("تُعدَّل قواعد النقاط من الإعدادات ← النقاط، وتُطبَّق من السيرفر على الجميع.", style = MBType.micro, color = MB.ink3)
             }
         }
     }

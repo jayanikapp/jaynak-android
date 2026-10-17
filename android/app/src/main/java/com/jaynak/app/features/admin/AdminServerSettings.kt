@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,7 +40,7 @@ import com.jaynak.app.design.pressable
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-private val subs = listOf("price" to "التسعير", "rewards" to "المكافآت", "promos" to "أكواد الخصم", "team" to "الفريق", "depts" to "أقسام الدعم")
+private val subs = listOf("price" to "التسعير", "points" to "النقاط", "rewards" to "المكافآت", "promos" to "أكواد الخصم", "team" to "الفريق", "depts" to "أقسام الدعم")
 
 /** الإعدادات — نفس أقسام لوحة التحكم: التسعير، المكافآت، أكواد الخصم، الفريق، أقسام الدعم. */
 @Composable
@@ -59,6 +60,7 @@ fun AdminServerSettings() {
         else if (s == null) androidx.compose.material3.CircularProgressIndicator(color = MB.green)
         else when (sub) {
             "price" -> PriceEditor(s) { load() }
+            "points" -> PointsEditor(s) { load() }
             "rewards" -> RewardsEditor(s) { load() }
             "promos" -> PromosEditor(s) { load() }
             "team" -> TeamEditor(s) { load() }
@@ -568,6 +570,99 @@ private fun DeptsEditor(set: JSONObject, reload: suspend () -> Unit) {
                     renaming = null; reload()
                 }
             }, symbol = "checkmark")
+        }
+    }
+}
+
+
+// ───────── النقاط (خصم وإضافة عند القبول/الرفض/التسليم) — نفس تبويب ⭐ في اللوحة ─────────
+
+private val pointGroups = listOf(
+    Triple("customer", "👤 العميل", listOf(
+        "cancelBeforeAccept" to "يُخصم عند إلغاء الطلب قبل قبول مندوب",
+        "cancelAfterAccept" to "يُخصم عند الإلغاء بعد القبول",
+        "delivered" to "يُضاف عند تسليم الطلب",
+        "perRial" to "نقاط إضافية لكل ريال من قيمة الطلب")),
+    Triple("driver", "🛵 المندوب", listOf(
+        "declineBeforeAccept" to "يُخصم عند رفض الطلب قبل القبول",
+        "cancelAfterAccept" to "يُخصم عند الإلغاء/الرفض بعد القبول",
+        "accept" to "يُضاف عند قبول الطلب",
+        "delivered" to "يُضاف عند تسليم الطلب")),
+)
+
+@Composable
+private fun PointsEditor(set: JSONObject, reload: suspend () -> Unit) {
+    val store = LocalStore.current
+    val scope = rememberCoroutineScope()
+    val rules = set.po("pointsRules")
+    var enabled by remember { mutableStateOf(rules.pb("enabled", true)) }
+    val vals = remember {
+        mutableStateMapOf<String, String>().also { m ->
+            pointGroups.forEach { (g, _, fs) -> fs.forEach { (k, _) -> m["$g.$k"] = rules.po(g).pi(k).toString() } }
+        }
+    }
+    var log by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    suspend fun loadLog() {
+        runCatching { Panel.get("api/admin/points-log?limit=40") }.getOrNull()?.let { log = it.pl("log") }
+    }
+    LaunchedEffect(Unit) { loadLog() }
+
+    PanelCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MBToggle(enabled, { enabled = it })
+            Spacer(Modifier.weight(1f))
+            Text("تفعيل نظام النقاط", style = MBType.callout, color = MB.ink)
+        }
+        Text("القيم تُطبَّق من السيرفر فوراً على التطبيقين. الخصم لا ينزل برصيد النقاط تحت الصفر.", style = MBType.micro, color = MB.ink2)
+    }
+    pointGroups.forEach { (g, title, fs) ->
+        PanelCard {
+            Text(title, style = MBType.callout, color = MB.ink)
+            fs.forEach { (k, label) ->
+                MBField(label, vals["$g.$k"] ?: "", { vals["$g.$k"] = it }, keyboard = KeyboardType.Number)
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PanelButton("استرجاع الافتراضي", MB.ink2) {
+            scope.launch {
+                store.panelRun("تم استرجاع القيم الافتراضية") { Panel.post("api/admin/points-rules", jsonOf("action" to "reset")) }
+                reload(); loadLog()
+            }
+        }
+        PanelButton("حفظ", filled = true) {
+            val body = JSONObject().put("enabled", enabled)
+            for ((g, _, fs) in pointGroups) {
+                val sub = JSONObject()
+                for ((k, label) in fs) {
+                    val v = (vals["$g.$k"] ?: "").trim().toIntOrNull()
+                    if (v == null || v < 0) {
+                        store.toast = com.jaynak.app.core.AppStore.Toast(text = "أدخل رقماً صحيحاً (0 أو أكثر) في: $label", kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+                        return@PanelButton
+                    }
+                    sub.put(k, v)
+                }
+                body.put(g, sub)
+            }
+            scope.launch {
+                store.panelRun("تم حفظ قواعد النقاط — تُطبَّق فوراً") { Panel.post("api/admin/points-rules", body) }
+                reload(); loadLog()
+            }
+        }
+    }
+    PanelCard {
+        Text("آخر حركات النقاط", style = MBType.callout, color = MB.ink)
+        if (log.isEmpty()) Text("لا توجد حركات بعد", style = MBType.caption, color = MB.ink3)
+        log.take(30).forEach { r ->
+            val d = r.pi("delta")
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text((if (d > 0) "+" else "") + d, style = MBType.caption, color = if (d >= 0) MB.green else MB.red, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text((if (r.ps("role") == "driver") "مندوب " else "عميل ") + r.ps("phone"), style = MBType.caption, color = MB.ink)
+                    Text(r.ps("label"), style = MBType.micro, color = MB.ink2)
+                }
+            }
         }
     }
 }

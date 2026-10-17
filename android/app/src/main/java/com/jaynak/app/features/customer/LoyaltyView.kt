@@ -149,8 +149,14 @@ fun LoyaltyView() {
                     GlassCard {
                         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             SectionHeader("كيف تكسب النقاط؟", symbol = "questionmark.circle")
-                            KeyValueRow("كل طلب مكتمل", "+${Loyalty.pointsPerOrder} نقطة")
-                            KeyValueRow("كل ١ ر.ع. من قيمة الطلب", "+${Loyalty.pointsPerRial.toInt()} نقطة")
+                            val pr = store.pointsRules
+                            KeyValueRow("كل طلب مكتمل", "+${pr.cDelivered} نقطة")
+                            KeyValueRow("كل ١ ر.ع. من قيمة الطلب", "+${pr.cPerRial} نقطة")
+                            if (pr.cCancelBefore > 0) KeyValueRow("إلغاء الطلب قبل قبول المندوب", "−${pr.cCancelBefore} نقطة")
+                            if (pr.cCancelAfter > 0) KeyValueRow("إلغاء الطلب بعد قبول المندوب", "−${pr.cCancelAfter} نقطة")
+                            store.pointsHistory.take(8).forEach { e ->
+                                KeyValueRow(e.label + if (e.ref.isEmpty()) "" else " · " + e.ref, (if (e.delta > 0) "+" else "") + e.delta)
+                            }
                             Text("النقاط تُضاف تلقائياً بعد تسليم الطلب، ولا تنتهي صلاحيتها.", style = MBType.micro, color = MB.ink3)
                         }
                     }
