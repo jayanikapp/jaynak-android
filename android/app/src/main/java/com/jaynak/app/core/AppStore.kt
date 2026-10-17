@@ -38,6 +38,7 @@ class AppStore {
     /** قواعد النقاط وسجل الحركات من السيرفر (لا تُحفظ محلياً). */
     var pointsRules by mutableStateOf(PointsRules())
     var pointsHistory by mutableStateOf<List<PointsEntry>>(emptyList())
+    private var pointsSeq = 0
     var promos by mutableStateOf(listOf<PromoCode>())
     var tickets by mutableStateOf(listOf<SupportTicket>())
     var chats by mutableStateOf(listOf<ChatMessage>())
@@ -563,7 +564,9 @@ class AppStore {
         val sess = session ?: return
         if (sess.role == UserRole.admin) return
         val role = if (sess.role == UserRole.driver) "driver" else "customer"
+        val seq = ++pointsSeq
         val j = runCatching { OrdersService.send("api/points?role=$role", "GET", null) }.getOrNull() ?: return
+        if (seq != pointsSeq) return   // ردّ قديم سبقه طلب أحدث — نتجاهله
         var pr = pointsRules
         j.optJSONObject("rules")?.let { pr = pr.merged(role, it) }
         if (j.has("enabled")) pr = pr.copy(enabled = j.optBoolean("enabled", pr.enabled))
@@ -1231,7 +1234,7 @@ class AppStore {
                     drivers = drivers.mapAt(di) {
                         it.copy(ratingSum = it.ratingSum + stars, ratingCount = it.ratingCount + 1)
                     }
-                    awardTierPoints(Loyalty.tierPoints(stars), di, "تقييم")
+                    if (!OrdersService.isAvailable) awardTierPoints(Loyalty.tierPoints(stars), di, "تقييم")
                 }
             }
         } else {
@@ -1692,7 +1695,8 @@ class AppStore {
 
         // نقاط الولاء للزبون
         val ci0 = customers.indexOfFirst { it.id == o.customerID }
-        if (ci0 >= 0) {
+        // مع وجود السيرفر هو وحده من يحتسب النقاط (يمنع التضارب والقفزات في الرصيد)
+        if (ci0 >= 0 && !OrdersService.isAvailable) {
             val earned = pointsRules.customerEarned(o.price.total)
             customers = customers.mapAt(ci0) {
                 it.copy(points = it.points + earned, lifetimePoints = it.lifetimePoints + earned)
@@ -1720,7 +1724,7 @@ class AppStore {
                     it.copy(completedOrders = it.completedOrders + 1,
                         presence = DriverPresence.online, coord = o.dropoff.coord)
                 }
-                awardTierPoints(if (pointsRules.enabled) pointsRules.dDelivered else 0, di, "توصيلة")
+                if (!OrdersService.isAvailable) awardTierPoints(if (pointsRules.enabled) pointsRules.dDelivered else 0, di, "توصيلة")
 
                 val raw = if (o.dispatchMode == DispatchMode.nearby)
                     min(o.price.total, max(rules.minCommission, o.price.total * rules.expressCommissionPerRial))
