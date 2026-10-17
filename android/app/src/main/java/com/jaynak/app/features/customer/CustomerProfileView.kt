@@ -56,6 +56,10 @@ fun CustomerProfileView() {
     var showLegal by remember { mutableStateOf(false) }
     var showSupport by remember { mutableStateOf(false) }
     var showAvatar by remember { mutableStateOf(false) }
+    var showEdit by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { store.syncProfileFromServer(); kotlinx.coroutines.delay(8000) }
+    }
     var showDelete by remember { mutableStateOf(false) }
     var showSignOut by remember { mutableStateOf(false) }
     val c = store.currentCustomer
@@ -98,6 +102,7 @@ fun CustomerProfileView() {
                 }
                 SettingsGroup("الحساب", listOf(
                     SettingsRow("صورة الحساب", "person.crop.circle.fill", detail = "تغيير", action = { showAvatar = true }),
+                    SettingsRow("تعديل بياناتي", "pencil.line", detail = "طلب تعديل", action = { showEdit = true }),
                     SettingsRow("الأماكن المحفوظة", "star.fill", detail = "${c?.savedPlaces?.size ?: 0}"),
                     SettingsRow("الإشعارات", "bell.fill", detail = "مفعّلة"),
                     SettingsRow("اللغة", "globe", detail = "العربية"),
@@ -127,6 +132,7 @@ fun CustomerProfileView() {
         }
     }
 
+    if (showEdit) com.jaynak.app.features.shared.ProfileEditSheet(com.jaynak.app.core.UserRole.customer) { showEdit = false }
     if (showAvatar && c != null) com.jaynak.app.features.shared.AvatarEditSheet("customer", c.name) { showAvatar = false }
     if (showLegal) LegalView(initialAudience = null, onDismiss = { showLegal = false })
     if (showSupport) ChatView("support-${c?.id ?: "x"}", "الدعم الفني", "", UserRole.customer,

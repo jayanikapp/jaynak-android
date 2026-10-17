@@ -194,6 +194,10 @@ fun DriverOfferSheet(order: Order) {
 
                     }
 
+                    val navCtx = androidx.compose.ui.platform.LocalContext.current
+                    GlassButton("الملاحة إلى نقطة الاستلام", onClick = {
+                        com.jaynak.app.features.shared.NavigationLauncher.open(navCtx, order.pickup.coord, order.pickup.name)
+                    }, modifier = Modifier.fillMaxWidth(), symbol = "location.north.line.fill", tint = MB.green)
                     Row(Modifier.fillMaxWidth().padding(bottom = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically) {

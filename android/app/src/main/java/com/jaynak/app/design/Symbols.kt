@@ -110,7 +110,7 @@ fun sfVector(name: String): ImageVector = when (name) {
     "minus.circle.fill" -> Icons.Filled.RemoveCircle
     "moon.zzz.fill" -> Icons.Filled.Bedtime
     "paperplane.fill" -> Icons.AutoMirrored.Filled.Send
-    "pencil" -> Icons.Filled.Edit
+    "pencil", "pencil.line" -> Icons.Filled.Edit
     "percent" -> Icons.Filled.Percent
     "person", "person.fill" -> Icons.Filled.Person
     "person.2.badge.key.fill" -> Icons.Filled.ManageAccounts

@@ -145,7 +145,7 @@ fun PresenceAccessory(driver: Driver) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(9.dp).background(if (driver.presence == DriverPresence.online) MB.green else MB.ink3, CircleShape))
-        Text(driver.presence.title, style = MBType.ar(14, FontWeight.SemiBold), color = MB.ink,
+        Text(if (store.hasActiveExpress) "مشغول (طلب سريع)" else driver.presence.title, style = MBType.ar(14, FontWeight.SemiBold), color = MB.ink,
             modifier = Modifier.weight(1f))
         MBToggle(driver.presence != DriverPresence.offline,
             { store.setPresence(if (it) DriverPresence.online else DriverPresence.offline) })

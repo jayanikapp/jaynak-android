@@ -19,6 +19,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.jaynak.app.design.clickableNoRipple
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,7 +66,8 @@ fun OpenOrdersView() {
     var showTone by remember { mutableStateOf(false) }
     val openList = store.openBoard
     val expressList = Dispatch.expressBoard(d, store.orders, store.session?.driverID, store.rules.minEarningsBalance)
-    val board = if (tab == 0) openList else expressList
+    val busyExpress = store.hasActiveExpress
+    val board = if (busyExpress) emptyList() else if (tab == 0) openList else expressList
 
     Box(Modifier.fillMaxSize()) {
         BrandBackground()
@@ -82,6 +84,9 @@ fun OpenOrdersView() {
                 Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                if (busyExpress) Text("⚡ عندك طلب سريع جارٍ — أنهِه بنجاح أو ألغِه لتظهر الطلبات الأخرى",
+                    style = MBType.callout, color = MB.gold, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 if (d != null && d.isDestinationMode) DestinationBanner(d)
 
                 if (board.isEmpty()) {
@@ -173,6 +178,11 @@ private fun BoardRow(item: Dispatch.BoardItem, onTap: () -> Unit) {
             Label("المسار", "${"%.1f".format(Locale.US, o.price.km)} كم", "arrow.triangle.turn.up.right.diamond.fill")
             Label("الدفع", o.payment.title, o.payment.symbol)
             Spacer(Modifier.weight(1f))
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            Text("الملاحة", style = MBType.micro, color = MB.green,
+                modifier = Modifier.clickableNoRipple {
+                    com.jaynak.app.features.shared.NavigationLauncher.open(ctx, o.pickup.coord, o.pickup.name)
+                }.padding(horizontal = 10.dp, vertical = 6.dp))
             Text("اضغط للقبول", style = MBType.micro, color = MB.green)
         }
     }

@@ -1023,6 +1023,7 @@ class AppStore {
                         save()
                     }
                 }
+                if (di >= 0) applyDriverProfile(dj, di)
                 // حساب أنشأته الإدارة: يدخل مباشرة دون رفع مستندات
                 if (di >= 0 && dj.optBoolean("adminCreated", false) && !drivers[di].docs.adminVerified) {
                     drivers = drivers.mapAt(di) { it.copy(docs = it.docs.copy(adminVerified = true)) }
@@ -1467,6 +1468,7 @@ class AppStore {
             val myCustomer = session?.customerID
             val me = drivers.firstOrNull { it.id == did } ?: return null
             if (me.approval != DriverApproval.approved || !me.docs.isComplete || me.presence != DriverPresence.online) return null
+            if (hasActiveExpress) return null
             // التنبيه فقط للطلبات التي اختارها السيرفر لهذا المندوب (ضمن نطاقه وقرب الاستلام)
             return orders.firstOrNull {
                 it.status == OrderStatus.searching && !it.declinedBy.contains(did) &&
@@ -1548,6 +1550,10 @@ class AppStore {
 
     fun acceptOpenOrder(order: Order): Boolean {
         val did = session?.driverID ?: return false
+        if (hasActiveExpress) {
+            toast = Toast(text = "عندك طلب سريع جارٍ — أنهِه بنجاح أو ألغِه قبل استلام أي طلب آخر", kind = Toast.Kind.error)
+            return false
+        }
         val d = drivers.firstOrNull { it.id == did } ?: return false
         if (!(d.canGoOnline && d.approval == DriverApproval.approved)) {
             toast = Toast(text = "حسابك غير معتمد بعد", kind = Toast.Kind.error)
@@ -1632,6 +1638,10 @@ class AppStore {
 
     fun acceptOffer(order: Order) {
         val did = session?.driverID ?: return
+        if (hasActiveExpress) {
+            toast = Toast(text = "عندك طلب سريع جارٍ — أنهِه بنجاح أو ألغِه قبل استلام أي طلب آخر", kind = Toast.Kind.error)
+            return
+        }
         Notifications.clearOffer(order.ref)
         assign(order, did, manual = true)
 
@@ -1640,6 +1650,46 @@ class AppStore {
     }
 
     private val declineAt = mutableMapOf<Id, Long>()
+
+    /** «مشغول» = عنده طلب سريع جارٍ فقط. الطلب المفتوح لا يجعله مشغولاً. */
+    val hasActiveExpress: Boolean
+        get() {
+            val did = session?.driverID ?: return false
+            return orders.any { it.driverID == did && it.status.isLive && it.dispatchMode == DispatchMode.nearby && !it.promotedToOpen }
+        }
+
+    /** يطبّق بيانات الحساب القادمة من السيرفر (تعديل الإدارة أو موافقتها على طلب تعديل). */
+    private fun applyDriverProfile(dj: org.json.JSONObject, di: Int) {
+        val d = drivers[di]
+        fun s(o: org.json.JSONObject?, k: String, cur: String) = o?.optString(k, "")?.takeIf { it.isNotEmpty() } ?: cur
+        val v = dj.optJSONObject("vehicle")
+        val nd = d.copy(
+            name = s(dj, "name", d.name), zone = s(dj, "zone", d.zone),
+            docs = d.docs.copy(civilID = s(dj, "civilID", d.docs.civilID)),
+            vehicle = d.vehicle.copy(
+                make = s(v, "make", d.vehicle.make), model = s(v, "model", d.vehicle.model),
+                year = s(v, "year", d.vehicle.year), color = s(v, "color", d.vehicle.color),
+                plateNumber = s(v, "plateNumber", d.vehicle.plateNumber),
+                plateLetters = s(v, "plateLetters", d.vehicle.plateLetters)))
+        if (nd != d) { drivers = drivers.mapAt(di) { nd }; save() }
+    }
+
+    suspend fun syncProfileFromServer() {
+        val me = runCatching { OrdersService.send("api/me", "GET", null) }.getOrNull() ?: return
+        val did = session?.driverID
+        val dj = me.optJSONObject("driver")
+        if (did != null && dj != null) {
+            val di = drivers.indexOfFirst { it.id == did }
+            if (di >= 0) applyDriverProfile(dj, di)
+        }
+        val cid = session?.customerID
+        val cj = me.optJSONObject("customer")
+        if (cid != null && cj != null) {
+            val ci = customers.indexOfFirst { it.id == cid }
+            val n = cj.optString("name", "")
+            if (ci >= 0 && n.isNotEmpty() && n != customers[ci].name) { customers = customers.mapAt(ci) { it.copy(name = n) }; save() }
+        }
+    }
     private var offerBaseline: MutableMap<String, Double>? = null
     private var offerBaselineDriver: Id? = null
     private var wasOffline = true

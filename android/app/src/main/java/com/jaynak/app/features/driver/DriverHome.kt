@@ -107,7 +107,7 @@ fun DriverHome(onOpenTrip: () -> Unit) {
                                 DriverPresence.busy -> orange
                                 else -> MB.ink3
                             }, CircleShape))
-                        Text(d?.presence?.title ?: "", style = MBType.caption, color = MB.ink2)
+                        Text(if (store.hasActiveExpress) "مشغول (طلب سريع)" else (d?.presence?.title ?: ""), style = MBType.caption, color = MB.ink2)
                     }
                 }
                 Spacer(Modifier.weight(1f))
@@ -212,7 +212,7 @@ private fun PresenceCard() {
                     tint = if (online) MB.green else MB.ink3)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DriverPresence.values().forEach { p ->
+                DriverPresence.values().filter { it != DriverPresence.busy }.forEach { p ->
                     val sel = d?.presence == p
                     Box(
                         Modifier.weight(1f)
