@@ -110,6 +110,12 @@ fun DriverOfferSheet(order: Order) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.Start) {
+                        GlassButton("تصغير", onClick = {
+                            Feedback.stopOfferAlert()
+                            store.minimizeOffer(order)
+                        }, symbol = "chevron.down")
+                    }
                     Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {

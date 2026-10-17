@@ -1052,6 +1052,7 @@ class AppStore {
                 val known = base[remote.id]
                 val fresh = !capturing && (known == null || known != remote.offeredAt)
                 base[remote.id] = remote.offeredAt
+                if (fresh) orders.firstOrNull { it.remoteID == remote.id }?.let { minimizedOffers = minimizedOffers - it.id }
                 merge(remote, did, asBoard = !fresh)
             }
             for (a in feed.actives) merge(a, did)
@@ -1453,6 +1454,13 @@ class AppStore {
 
     // ───────── المندوب ─────────
 
+    /** بطاقات صغّرها المندوب: تبقى في قائمة الطلبات ويستطيع فتحها لاحقاً. */
+    var minimizedOffers by mutableStateOf(setOf<Id>())
+    fun minimizeOffer(order: Order) {
+        minimizedOffers = minimizedOffers + order.id
+        Feedback.stopOfferAlert()
+    }
+
     val pendingOfferForCurrentDriver: Order?
         get() {
             val did = session?.driverID ?: return null
@@ -1462,7 +1470,7 @@ class AppStore {
             // التنبيه فقط للطلبات التي اختارها السيرفر لهذا المندوب (ضمن نطاقه وقرب الاستلام)
             return orders.firstOrNull {
                 it.status == OrderStatus.searching && !it.declinedBy.contains(did) &&
-                    it.offeredTo.contains(did) && it.customerID != myCustomer
+                    it.offeredTo.contains(did) && it.customerID != myCustomer && it.id !in minimizedOffers
             }
         }
 
