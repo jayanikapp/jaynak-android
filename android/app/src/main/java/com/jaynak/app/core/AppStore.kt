@@ -268,10 +268,17 @@ class AppStore {
         verifiedPhone = phone
 
         if (admins.any { it.phone == phone && it.isActive }) {
-            signInAdmin(phone, viaDemo = false)
-            challenge = null
-            verifiedPhone = null
-            return if (session != null) VerifyOutcome.signedIn else VerifyOutcome.failed
+            // قد يكون سجلّ الإدارة المحلي قديماً (حُذف الرقم من الفريق على السيرفر) — نتحقق أولاً
+            val j = if (OrdersService.isAvailable) runCatching { OrdersService.send("site/me", "GET", null) }.getOrNull() else null
+            if (j != null && !j.optBoolean("isStaff")) {
+                admins = admins.map { if (it.phone == phone) it.copy(isActive = false) else it }
+                save()
+            } else {
+                signInAdmin(phone, viaDemo = false)
+                challenge = null
+                verifiedPhone = null
+                return if (session != null) VerifyOutcome.signedIn else VerifyOutcome.failed
+            }
         }
         if (signInStaffFromServer(phone)) {
             challenge = null
@@ -313,6 +320,8 @@ class AppStore {
         val j = runCatching { OrdersService.send("site/me", "GET", null) }.getOrNull() ?: return
         if (!j.optBoolean("isStaff")) {
             toast = Toast(text = "أُلغيت صلاحية الإدارة لهذا الرقم", kind = Toast.Kind.error)
+            admins = admins.map { if (it.phone == phone) it.copy(isActive = false) else it }
+            save()
             signOut()
             return
         }
