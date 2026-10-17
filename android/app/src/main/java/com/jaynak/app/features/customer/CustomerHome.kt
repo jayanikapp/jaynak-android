@@ -80,7 +80,8 @@ fun CustomerHome(onNewOrder: (OrderKind) -> Unit, onOpenLive: () -> Unit) {
     val recent: List<Order> = store.session?.customerID?.let { cid ->
         store.orders.filter { it.customerID == cid && !it.status.isLive }.take(3)
     } ?: emptyList()
-    val onlineDrivers: List<Coord> = store.drivers.filter { it.presence == DriverPresence.online }.map { it.coord }
+    val onlineDrivers: List<Coord> = store.nearbyDrivers.ifEmpty {
+        store.drivers.filter { it.presence == DriverPresence.online }.map { it.coord } }
 
     Box(Modifier.fillMaxSize()) {
         Column(

@@ -1,6 +1,8 @@
 package com.jaynak.app.features.driver
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +82,7 @@ private val orange = Color(0xFFFF9500)
 fun DriverHome(onOpenTrip: () -> Unit) {
     val store = LocalStore.current
     var showSupport by remember { mutableStateOf(false) }
+    var showFullMap by remember { mutableStateOf(false) }
     val d = store.currentDriver
     val actives = store.activeOrdersForCurrentDriver
 
@@ -165,10 +168,14 @@ fun DriverHome(onOpenTrip: () -> Unit) {
                     pickup = null, dropoff = null,
                     modifier = Modifier.fillMaxWidth().height(175.dp),
                     driver = d?.coord, driverName = d?.name,
-                    nearby = store.drivers.filter { it.id != d?.id && it.presence == DriverPresence.online }.map { it.coord },
-                    showRoute = false, interactive = false,
+                    nearby = driverMapNearby(store, d?.id),
+                    showRoute = false, interactive = true, followDriver = false,
                     driverIcon = com.jaynak.app.core.LiveTracking.myIcon,
                 )
+                Box(
+                    Modifier.align(Alignment.TopStart).padding(12.dp)
+                        .glassChip().clickable { showFullMap = true }.padding(9.dp),
+                ) { SFIcon("arrow.up.left.and.arrow.down.right", size = 14.dp, tint = MB.ink) }
                 Row(
                     Modifier.align(Alignment.TopEnd).padding(12.dp)
                         .glassChip().padding(horizontal = 11.dp, vertical = 7.dp),
@@ -176,6 +183,42 @@ fun DriverHome(onOpenTrip: () -> Unit) {
                 ) {
                     SFIcon("location.fill", size = 10.dp, tint = MB.ink)
                     Text(d?.zone ?: "", style = MBType.micro, color = MB.ink)
+                }
+            }
+
+            if (showFullMap) {
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { showFullMap = false },
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+                ) {
+                    Box(Modifier.fillMaxSize()) {
+                        MapCanvas(
+                            pickup = null, dropoff = null, modifier = Modifier.fillMaxSize(),
+                            driver = d?.coord, driverName = d?.name,
+                            nearby = driverMapNearby(store, d?.id),
+                            showRoute = false, interactive = true, followDriver = false,
+                            driverIcon = com.jaynak.app.core.LiveTracking.myIcon,
+                        )
+                        Row(
+                            Modifier.align(Alignment.TopStart).statusBarsPadding().padding(14.dp)
+                                .glassChip().clickable { showFullMap = false }.padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            SFIcon("xmark", size = 12.dp, tint = MB.ink)
+                            Text("إغلاق", style = MBType.micro, color = MB.ink)
+                        }
+                        Row(
+                            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp)
+                                .glassChip().padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Box(Modifier.size(8.dp).background(MB.green, androidx.compose.foundation.shape.CircleShape))
+                            Text("${driverMapNearby(store, d?.id).size} مندوب متصل قريب منك",
+                                style = MBType.micro, color = MB.ink)
+                        }
+                    }
                 }
             }
 
@@ -406,3 +449,10 @@ private fun MyOrdersSummary(actives: List<Order>) {
         }
     }
 }
+
+
+/** المندوبون المتصلون القريبون: الحيّ من السيرفر، وإلا المعروف محلياً (بدون المندوب نفسه). */
+private fun driverMapNearby(store: com.jaynak.app.core.AppStore, me: com.jaynak.app.core.Id?): List<com.jaynak.app.core.Coord> =
+    store.nearbyDrivers.ifEmpty {
+        store.drivers.filter { it.id != me && it.presence == DriverPresence.online }.map { it.coord }
+    }

@@ -582,12 +582,14 @@ private val pointGroups = listOf(
         "cancelBeforeAccept" to "يُخصم عند إلغاء الطلب قبل قبول مندوب",
         "cancelAfterAccept" to "يُخصم عند الإلغاء بعد القبول",
         "delivered" to "يُضاف عند تسليم الطلب",
-        "perRial" to "نقاط إضافية لكل ريال من قيمة الطلب")),
+        "perRial" to "نقاط إضافية لكل ريال من قيمة الطلب",
+        "suspendAt" to "إيقاف الحساب عند نقاط سالبة (0 = بلا إيقاف)")),
     Triple("driver", "🛵 المندوب", listOf(
         "declineBeforeAccept" to "يُخصم عند رفض الطلب قبل القبول",
         "cancelAfterAccept" to "يُخصم عند الإلغاء/الرفض بعد القبول",
         "accept" to "يُضاف عند قبول الطلب",
-        "delivered" to "يُضاف عند تسليم الطلب")),
+        "delivered" to "يُضاف عند تسليم الطلب",
+        "suspendAt" to "إيقاف الحساب عند نقاط سالبة (0 = بلا إيقاف)")),
 )
 
 @Composable

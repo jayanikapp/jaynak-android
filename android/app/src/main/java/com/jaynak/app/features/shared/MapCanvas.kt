@@ -150,20 +150,6 @@ fun MapCanvas(
         map.post { map.zoomToBoundingBox(box, animate) ; tick++ }
     }
 
-    // مزامنة الدبابيس مع الخريطة كل إطار أثناء السحب والتكبير
-    LaunchedEffect(mapRef) {
-        val m = mapRef ?: return@LaunchedEffect
-        var lat = 0.0; var lon = 0.0; var z = 0.0; var sx = 0; var sy = 0
-        while (true) {
-            withFrameNanos { }
-            val c = m.mapCenter
-            if (c.latitude != lat || c.longitude != lon || m.zoomLevelDouble != z || m.scrollX != sx || m.scrollY != sy) {
-                lat = c.latitude; lon = c.longitude; z = m.zoomLevelDouble; sx = m.scrollX; sy = m.scrollY
-                frame++
-            }
-        }
-    }
-
     // الملاءمة الأولى + عند تغيّر نقطتي الطلب
     LaunchedEffect(mapRef, pickup?.name, dropoff?.name, fitKey) {
         didFit = false
@@ -187,25 +173,43 @@ fun MapCanvas(
                 Configuration.getInstance().load(
                     context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                 Configuration.getInstance().userAgentValue = "jaynak-android"
+                Configuration.getInstance().apply {
+                    cacheMapTileCount = 48
+                    tileDownloadThreads = 4
+                    tileFileSystemThreads = 4
+                    tileDownloadMaxQueueSize = 48
+                    animationSpeedDefault = 380
+                }
                 MapView(context).apply {
+                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                    isHorizontalMapRepetitionEnabled = false
+                    isVerticalMapRepetitionEnabled = false
+                    isFlingEnabled = true
+                    // داخل ScrollView: لا تسرق القائمة اللمسة من الخريطة أثناء السحب/التكبير
+                    if (interactive) setOnTouchListener { v, e ->
+                        when (e.actionMasked) {
+                            android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_POINTER_DOWN,
+                            android.view.MotionEvent.ACTION_MOVE -> v.parent?.requestDisallowInterceptTouchEvent(true)
+                            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                                v.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
+                        false
+                    }
                     MapTiles.apply(this, dark)
                     setMultiTouchControls(interactive)
                     zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                     minZoomLevel = 4.0
                     controller.setZoom(10.0)
                     controller.setCenter(GeoPoint(Geo.cityCenter.lat, Geo.cityCenter.lon))
-                    addMapListener(object : MapListener {
-                        override fun onScroll(event: ScrollEvent?): Boolean { tick++; return false }
-                        override fun onZoom(event: ZoomEvent?): Boolean { tick++; return false }
-                    })
-                    addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> tick++ }
                     mapRef = this
                 }
             },
             update = { map ->
                 MapTiles.apply(map, dark)
-                map.overlays.removeAll { it is Polyline }
-                if (routeCoords.isNotEmpty()) {
+                val sig = "${MapTiles.style}|${routeCoords.size}|${routeCoords.firstOrNull()}|${routeCoords.lastOrNull()}|${green.toArgb()}"
+                val routeChanged = map.tag != sig
+                if (routeChanged) { map.tag = sig; map.overlays.removeAll { it is Polyline } }
+                if (routeChanged && routeCoords.isNotEmpty()) {
                     val geo = routeCoords.map { GeoPoint(it.lat, it.lon) }
                     // حدّ داكن ثم خط ملوّن فوقه: يظهر المسار واضحاً على أي خلفية
                     listOf(9f to android.graphics.Color.argb(120, 0, 0, 0),
@@ -222,14 +226,16 @@ fun MapCanvas(
                         })
                     }
                 }
-                map.overlays.removeAll { it is MapPinOverlay }
-                map.overlays.add(MapPinOverlay(density.density).also { it.pins = overlayPins; it.dots = overlayDots })
+                val pinOv = (map.overlays.firstOrNull { it is MapPinOverlay } as? MapPinOverlay)
+                    ?: MapPinOverlay(density.density)
+                pinOv.pins = overlayPins; pinOv.dots = overlayDots
                 val carOv = (map.overlays.firstOrNull { it is MapCarOverlay } as? MapCarOverlay)
                     ?: MapCarOverlay(density.density)
-                map.overlays.remove(carOv)
                 carOv.onTap = onCarTap
                 carOv.setCars(overlayCars)
-                map.overlays.add(carOv)
+                // الترتيب: مسار ← دبابيس ← سيارات (يُعاد فقط إذا اختلّ)
+                map.overlays.remove(pinOv); map.overlays.remove(carOv)
+                map.overlays.add(pinOv); map.overlays.add(carOv)
                 map.invalidate()
             },
         )

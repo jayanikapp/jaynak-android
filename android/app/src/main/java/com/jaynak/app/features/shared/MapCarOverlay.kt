@@ -66,6 +66,7 @@ class MapCarOverlay(private val density: Float) : Overlay() {
         color = 0xFFFFFFFF.toInt(); textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
     }
     private val pt = Point()
+    private val gp = GeoPoint(0.0, 0.0)
     private val rect = RectF()
     private val path = Path()
 
@@ -79,7 +80,7 @@ class MapCarOverlay(private val density: Float) : Overlay() {
         last = now
         val k = 1f - exp(-dt / 0.9f)        // انزلاق ناعم نحو الهدف
         val kr = 1f - exp(-dt / 0.25f)      // دوران سريع نسبياً
-        var animating = true
+        var animating = false
 
         for ((_, s) in states) {
             s.lat += (s.tLat - s.lat) * k
@@ -89,10 +90,12 @@ class MapCarOverlay(private val density: Float) : Overlay() {
             if (d < -180f) d += 360f
             s.rot += d * kr
 
-            proj.toPixels(GeoPoint(s.lat, s.lon), pt)
+            if (abs(s.tLat - s.lat) + abs(s.tLon - s.lon) > 1e-7 || abs(d) > 0.5f) animating = true
+            proj.toPixels(gp.setCoords(s.lat, s.lon), pt)
             drawCar(c, s, pt.x.toFloat(), pt.y.toFloat(), now)
         }
-        if (animating) map.postInvalidateOnAnimation()
+        // النبض يحتاج إعادة رسم، لكن بمعدل ~24 إطاراً/ث فقط حتى لا يثقل السحب
+        if (animating) map.postInvalidateOnAnimation() else map.postInvalidateDelayed(42)
     }
 
     private fun rr(c: Canvas, l: Float, t: Float, r: Float, b: Float, rad: Float, p: Paint) {

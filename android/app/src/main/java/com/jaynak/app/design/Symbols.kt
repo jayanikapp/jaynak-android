@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
  */
 fun sfVector(name: String): ImageVector = when (name) {
     "antenna.radiowaves.left.and.right", "dot.radiowaves.left.and.right" -> Icons.Filled.Sensors
+    "arrow.up.left.and.arrow.down.right" -> Icons.Filled.Fullscreen
     "arrow.clockwise", "arrow.clockwise.circle.fill" -> Icons.Filled.Refresh
     "arrow.down" -> Icons.Filled.ArrowDownward
     "arrow.down.circle.fill" -> Icons.Filled.ArrowCircleDown

@@ -1694,6 +1694,38 @@ class AppStore {
             if (ci >= 0 && n.isNotEmpty() && n != customers[ci].name) { customers = customers.mapAt(ci) { it.copy(name = n) }; save() }
         }
     }
+    /** سبب إيقاف الحساب (نقاط منخفضة) من السيرفر؛ فارغ = يعمل. */
+    var blockedReason by mutableStateOf("")
+
+    /** مندوبون متصلون قريبون (موقع حي من السيرفر، بلا أسماء). */
+    var nearbyDrivers by mutableStateOf<List<com.jaynak.app.core.Coord>>(emptyList())
+        private set
+
+    suspend fun pollBlockedReason() {
+        if (!OrdersService.isAvailable || session == null) return
+        val me = runCatching { OrdersService.send("api/me", "GET", null) }.getOrNull() ?: return
+        val key = if (session?.role == UserRole.driver) "driver" else "customer"
+        val r = me.optJSONObject(key)?.optString("blockedReason", "") ?: ""
+        if (r != blockedReason) {
+            blockedReason = r
+            val did = session?.driverID
+            if (r.isNotEmpty() && did != null) {
+                val di = drivers.indexOfFirst { it.id == did }
+                if (di >= 0) drivers = drivers.mapAt(di) { it.copy(presence = DriverPresence.offline) }
+            }
+        }
+    }
+
+    suspend fun refreshNearbyDrivers() {
+        if (!OrdersService.isAvailable || session == null) return
+        val j = runCatching { OrdersService.send("api/drivers/nearby", "GET", null) }.getOrNull() ?: return
+        val a = j.optJSONArray("drivers") ?: return
+        nearbyDrivers = (0 until a.length()).mapNotNull {
+            val o = a.optJSONObject(it) ?: return@mapNotNull null
+            com.jaynak.app.core.Coord(o.optDouble("lat"), o.optDouble("lon"))
+        }
+    }
+
     private var offerBaseline: MutableMap<String, Double>? = null
     private var offerBaselineDriver: Id? = null
     private var wasOffline = true
