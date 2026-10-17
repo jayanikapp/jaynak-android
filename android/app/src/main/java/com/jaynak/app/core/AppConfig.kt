@@ -55,6 +55,12 @@ const val otpLength = 6
         get() = store.token
         set(v) { store.token = v?.takeIf { it.isNotEmpty() } }
 
+    /** تذكرة رمز الإدارة (X-Admin-Token) — تُمسح عند الخروج. */
+    @Volatile var adminToken: String? = null
+
+    /** يُرفع عندما يرفض السيرفر مسار إدارة ويحتاج رمز الإدارة. */
+    val adminCodeNeeded = kotlinx.coroutines.flow.MutableStateFlow(0)
+
     /** آخر سبب لفشل ربط الحساب بالسيرفر (للعرض للمستخدم). */
     @Volatile var lastAuthError: String? = null
 

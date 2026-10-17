@@ -377,6 +377,7 @@ object OrdersService {
         val b = Request.Builder()
             .url(Net.url(base, path))
             .header("Authorization", "Bearer $token")
+        AppConfig.adminToken?.takeIf { it.isNotEmpty() }?.let { b.header("X-Admin-Token", it) }
         if (body != null) b.method(method, body.toString().toRequestBody(Net.jsonType))
         else b.method(method, if (method == "GET") null else "{}".toRequestBody(Net.jsonType))
 
@@ -388,6 +389,14 @@ object OrdersService {
 
         if (res.status !in 200..299) {
             if (res.status == 401) throw Failure.Unauthorized
+            if (res.status == 403 && path.startsWith("api/admin") && !path.startsWith("api/admin/code")) {
+                AppConfig.adminCodeNeeded.value = AppConfig.adminCodeNeeded.value + 1
+                if (path != "site/me") {
+                    val me = runCatching { send("site/me", "GET", null) }.getOrNull()
+                    if (me != null && !me.optBoolean("isOwner") && me.optString("role").let { it.isEmpty() || it == "null" })
+                        throw Failure.Server("الرقم ${me.optString("phone")} غير مسجّل كمالك أو موظف على السيرفر — سجّل الدخول برقم المالك")
+                }
+            }
             val message = res.json.str("message") ?: res.json.str("error")
                 ?: "فشل الطلب (${res.status})"
             throw Failure.Server(message)

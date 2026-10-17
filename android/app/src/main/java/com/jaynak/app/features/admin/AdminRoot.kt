@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
+import com.jaynak.app.core.AppConfig
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +48,8 @@ fun AdminRoot() {
         add(0 to TabItem("نظرة عامة", "chart.bar.fill"))
         if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
             add(1 to TabItem("الطلبات", "shippingbox.fill"))
+        if (store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders))
+            add(8 to TabItem("التتبع", "point.topleft.down.to.point.bottomright.curvepath"))
         if (store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers))
             add(2 to TabItem("المستخدمون", "person.2.fill"))
         add(20 to TabItem("المزيد", "ellipsis.circle.fill"))
@@ -53,7 +58,7 @@ fun AdminRoot() {
     val moreItems = buildList {
         val ord = store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders)
         val usr = store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers)
-        if (ord) { add(6 to "الخريطة المباشرة"); add(8 to "تتبّع الطلبات"); add(7 to "سجل الصور") }
+        if (ord) { add(6 to "الخريطة المباشرة"); add(7 to "سجل الصور") }
         if (store.can(AdminPermission.manageDrivers)) add(9 to "السحوبات")
         if (usr) { add(5 to "طلبات الحذف") }
         if (store.can(AdminPermission.manageAdmins)) add(10 to "الرتب")
@@ -70,7 +75,14 @@ fun AdminRoot() {
     var selectedValue by remember { mutableStateOf(0) }
     val index = entries.indexOfFirst { it.first == selectedValue }.coerceAtLeast(0)
 
+    var gated by remember { mutableStateOf(false) }
+    val needed by AppConfig.adminCodeNeeded.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(needed) {
+        val r = runCatching { Panel.get("api/admin/code-status") }.getOrNull() ?: return@LaunchedEffect
+        if (r.pb("set") && !r.pb("elevated")) gated = true
+    }
     RoleToneScope(RoleTone.admin) {
+      Box {
         TabScaffold(
             tabs = entries.map { it.second },
             selected = index,
@@ -90,6 +102,7 @@ fun AdminRoot() {
                         AdminServerPeople(drivers = drv)
                     }
                 }
+                8 -> AdminServerTrace()
                 20 -> {
                     val m = more
                     if (m == null) MoreMenu(moreItems) { more = it }
@@ -109,6 +122,39 @@ fun AdminRoot() {
                 }
                 else -> AdminServerOverview()
             }
+        }
+        if (gated) AdminCodeGate { gated = false }
+      }
+    }
+}
+
+@Composable
+private fun AdminCodeGate(onDone: () -> Unit) {
+    val store = LocalStore.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        com.jaynak.app.design.BrandBackground()
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().padding(28.dp),
+            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("رمز الإدارة", style = MBType.title, color = MB.ink)
+            Text("أدخل رمز الإدارة لفتح اللوحة", style = MBType.caption, color = MB.ink2)
+            androidx.compose.foundation.layout.Spacer(Modifier.size(16.dp))
+            com.jaynak.app.design.MBField("الرمز", code, { code = it }, isRTLText = false)
+            androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
+            com.jaynak.app.design.PrimaryCTA(if (busy) "..." else "فتح", {
+                if (code.isEmpty() || busy) return@PrimaryCTA
+                busy = true
+                scope.launch {
+                    val ok = store.panelRun("") {
+                        val d = Panel.post("api/admin/code", jsonOf("action" to "verify", "code" to code))
+                        AppConfig.adminToken = d.ps("token")
+                    }
+                    busy = false
+                    if (ok) { code = ""; onDone() }
+                }
+            }, symbol = "lock.open.fill")
         }
     }
 }

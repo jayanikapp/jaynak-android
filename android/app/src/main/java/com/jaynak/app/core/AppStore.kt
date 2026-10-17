@@ -426,6 +426,7 @@ class AppStore {
     }
 
     fun signOut() {
+        AppConfig.adminToken = null
         val did = session?.driverID
         if (did != null) {
             val i = drivers.indexOfFirst { it.id == did }
