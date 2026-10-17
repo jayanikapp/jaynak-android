@@ -1041,6 +1041,9 @@ class AppStore {
                 offerBaseline = null; offerBaselineDriver = did
             }
             wasOffline = pres == DriverPresence.offline
+            // انتهى الطلب السريع: تظهر كل الطلبات في القوائم بصمت (بلا بطاقات/تنبيهات مفاجئة)
+            if (wasBusyExpress && !feed.busyExpress) offerBaseline = null
+            wasBusyExpress = feed.busyExpress
             val capturing = offerBaseline == null
             val base = offerBaseline ?: mutableMapOf<String, Double>().also { offerBaseline = it }
             if (capturing) {
@@ -1693,6 +1696,7 @@ class AppStore {
     private var offerBaseline: MutableMap<String, Double>? = null
     private var offerBaselineDriver: Id? = null
     private var wasOffline = true
+    private var wasBusyExpress = false
 
     fun declineOffer(order: Order) {
         val did = session?.driverID ?: return

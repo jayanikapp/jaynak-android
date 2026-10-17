@@ -258,6 +258,7 @@ object OrdersService {
         val board: List<RemoteOrder> = emptyList(),
         val active: RemoteOrder? = null,
         val actives: List<RemoteOrder> = emptyList(),
+        val busyExpress: Boolean = false,
     )
 
     // ───────── الزبون ─────────
@@ -333,7 +334,8 @@ object OrdersService {
             runCatching { Net.json.decodeFromString(RemoteOrder.serializer(), it.toString()) }.getOrNull()
         }
         val actives = list("actives").ifEmpty { listOfNotNull(active) }
-        return Feed(offers = list("offers"), board = list("board"), active = active, actives = actives)
+        return Feed(offers = list("offers"), board = list("board"), active = active, actives = actives,
+            busyExpress = json.optBoolean("busyExpress", false))
     }
 
     suspend fun chatSend(id: String, thread: String, body: String, role: String) {
