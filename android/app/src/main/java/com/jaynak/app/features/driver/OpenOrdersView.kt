@@ -62,6 +62,7 @@ fun OpenOrdersView() {
     var confirming by remember { mutableStateOf<Order?>(null) }
     val d = store.currentDriver
     var tab by remember { mutableStateOf(0) }       // 0 = مفتوحة، 1 = سريعة
+    var showTone by remember { mutableStateOf(false) }
     val openList = store.openBoard
     val expressList = Dispatch.expressBoard(d, store.orders, store.session?.driverID, store.rules.minEarningsBalance)
     val board = if (tab == 0) openList else expressList
@@ -69,7 +70,9 @@ fun OpenOrdersView() {
     Box(Modifier.fillMaxSize()) {
         BrandBackground()
         Column(Modifier.fillMaxSize()) {
-            NavBar(title = "الطلبات")
+            NavBar(title = "الطلبات", trailing = {
+                com.jaynak.app.design.GlassIconButton("speaker.wave.2.fill", { showTone = true }, size = 38.dp, tint = com.jaynak.app.design.MB.red)
+            })
             Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp)) {
                 com.jaynak.app.design.SegmentedPicker(
                     listOf("الطلبات المفتوحة (${openList.size})", "الطلبات السريعة (${expressList.size})"),
@@ -96,6 +99,8 @@ fun OpenOrdersView() {
             }
         }
     }
+
+    if (showTone) OfferToneSheet { showTone = false }
 
     confirming?.let { o ->
         ConfirmDialog(

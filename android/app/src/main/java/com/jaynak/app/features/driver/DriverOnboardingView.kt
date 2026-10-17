@@ -289,7 +289,10 @@ private fun Vehicle(draft: Driver, set: (Driver) -> Unit) {
             }, Modifier.weight(1f), placeholder = "١٢٣٤٥", symbol = "rectangle.and.text.magnifyingglass",
                 keyboard = KeyboardType.Number, isRTLText = false)
             MBField("حروف اللوحة", v.plateLetters, {
-                set(draft.copy(vehicle = v.copy(plateLetters = it.filter { c -> c.isLetter() }.take(2))))
+                val ls = it.filter { c -> c.isLetter() }.take(2)
+                // مسافة تلقائية بعد الحرف الأول حتى لا تلتصق الحروف العربية
+                val out = if (ls.length == 1 && it.length > v.plateLetters.length) "$ls " else ls.toList().joinToString(" ")
+                set(draft.copy(vehicle = v.copy(plateLetters = out)))
             }, Modifier.weight(1f), placeholder = "أ ب", isRTLText = false)
         }
         Text("لوحات عُمان: رقم مع حرف أو حرفين — مثال ١٢٣٤٥ أ ب", style = MBType.micro, color = MB.ink2,
