@@ -96,7 +96,7 @@ const val otpLength = 6
     }
 
     const val privacyPolicyURL = "https://jaynaik.app/privacy"
-    const val refundPolicyURL = "https://jaynaik.app/refund-policy"
+    const val refundPolicyURL = "https://jaynaik.app/terms"
     const val termsURL = "https://jaynaik.app/terms"
     const val supportEmail = "jayanikapp2@gmail.com"
     const val supportPhone = "+968 76004660"
