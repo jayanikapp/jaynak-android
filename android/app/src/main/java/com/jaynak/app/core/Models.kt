@@ -392,7 +392,6 @@ data class DriverDocuments(
 
     val isComplete: Boolean
         get() = adminVerified || (civilID.digitsOnly.length == AppConfig.civilIDLength &&
-            licenseNumber.length >= 4 &&
             missing.isEmpty())
 }
 

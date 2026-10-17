@@ -312,10 +312,6 @@ private fun Documents(draft: Driver, set: (Driver) -> Unit, onLegal: () -> Unit)
         DocumentUploadCard(DocumentKind.civilIDFront, draft.docs, update)
         DocumentUploadCard(DocumentKind.civilIDBack, draft.docs, update)
 
-        MBField("رقم رخصة القيادة", draft.docs.licenseNumber,
-            { update { d -> d.copy(licenseNumber = it) } },
-            placeholder = "L-12345", symbol = "creditcard.fill", isRTLText = false)
-
         DocumentUploadCard(DocumentKind.license, draft.docs, update)
         DocumentUploadCard(DocumentKind.ownership, draft.docs, update)
         DocumentUploadCard(DocumentKind.vehicle, draft.docs, update)
@@ -374,7 +370,6 @@ private fun Review(
             ReviewRow("رقم اللوحة", draft.vehicle.plateDisplay)
         }
         ReviewSection("المستندات", 2, onEdit) {
-            ReviewRow("رقم الرخصة", draft.docs.licenseNumber)
             DocumentKind.values().forEach { kind ->
                 val files = draft.docs.assetsOf(kind)
                 if (files.isNotEmpty()) {

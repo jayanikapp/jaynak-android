@@ -238,8 +238,11 @@ fun DocumentUploadCard(
                         else -> "محفوظ على جهازك"
                     }
                 }
-                Text(if (satisfied) statusLine else kind.hint, style = MBType.micro,
-                    color = if (satisfied) accent else MB.ink2, textAlign = TextAlign.End)
+                val big = kind == DocumentKind.vehicle && !satisfied
+                Text(if (satisfied) statusLine else kind.hint,
+                    style = if (big) MBType.callout else MBType.micro,
+                    fontWeight = if (big) FontWeight.Bold else null,
+                    color = if (satisfied) accent else if (big) MB.red else MB.ink2, textAlign = TextAlign.End)
             }
         }
 
