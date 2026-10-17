@@ -61,7 +61,7 @@ fun DriverTierCard(driver: Driver, expanded: Boolean = true, modifier: Modifier 
                 ) { SFIcon(tier.symbol, size = 22.dp, tint = Color.White) }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.End) {
                     Text("رتبتك: ${tier.title}", style = MBType.ar(19, FontWeight.Bold), color = MB.ink)
-                    Text("${driver.tierPoints} نقطة رتبة", style = MBType.caption, color = MB.ink2)
+                    Text("رصيدك: ${driver.tierPoints} نقطة", style = MBType.caption, color = MB.ink2)
                 }
             }
 
@@ -82,7 +82,7 @@ fun DriverTierCard(driver: Driver, expanded: Boolean = true, modifier: Modifier 
                     Row(Modifier.fillMaxWidth()) {
                         Text("التالي: ${next.title}", style = MBType.caption, color = MB.ink2)
                         Spacer(Modifier.weight(1f))
-                        Text("${maxOf(0, next.minPoints - driver.tierPoints)} نقطة",
+                        Text("باقي ${maxOf(0, next.minPoints - driver.tierPoints)} نقطة",
                             style = MBType.num(12, FontWeight.SemiBold), color = tierTint)
                     }
                     Box(Modifier.fillMaxWidth().height(7.dp)
