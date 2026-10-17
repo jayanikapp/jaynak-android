@@ -1033,7 +1033,27 @@ class AppStore {
             drivers.firstOrNull { it.id == did }?.let {
                 com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, it.presence != DriverPresence.offline)
             }
-            for (remote in feed.offers) merge(remote, did)
+            // عند الدخول/فتح التطبيق/الاتصال: الطلبات الموجودة تذهب للقوائم بصمت،
+            // والتنبيه فقط لما يصل جديد (أو أُعيد توزيعه) وأنت متصل.
+            val pres = drivers.firstOrNull { it.id == did }?.presence ?: DriverPresence.offline
+            if (offerBaselineDriver != did || (wasOffline && pres != DriverPresence.offline)) {
+                offerBaseline = null; offerBaselineDriver = did
+            }
+            wasOffline = pres == DriverPresence.offline
+            val capturing = offerBaseline == null
+            val base = offerBaseline ?: mutableMapOf<String, Double>().also { offerBaseline = it }
+            if (capturing) {
+                orders = orders.map {
+                    if (it.status == OrderStatus.searching && it.offeredTo.contains(did))
+                        it.copy(offeredTo = it.offeredTo.filter { x -> x != did }) else it
+                }
+            }
+            for (remote in feed.offers) {
+                val known = base[remote.id]
+                val fresh = !capturing && (known == null || known != remote.offeredAt)
+                base[remote.id] = remote.offeredAt
+                merge(remote, did, asBoard = !fresh)
+            }
             for (a in feed.actives) merge(a, did)
             for (remote in feed.board) merge(remote, did, asBoard = true)
             // طلبات لم تعد في التغذية (استلمها غيره أو أُلغيت) تُزال
@@ -1435,6 +1455,8 @@ class AppStore {
         get() {
             val did = session?.driverID ?: return null
             val myCustomer = session?.customerID
+            val me = drivers.firstOrNull { it.id == did } ?: return null
+            if (me.approval != DriverApproval.approved || !me.docs.isComplete || me.presence != DriverPresence.online) return null
             // التنبيه فقط للطلبات التي اختارها السيرفر لهذا المندوب (ضمن نطاقه وقرب الاستلام)
             return orders.firstOrNull {
                 it.status == OrderStatus.searching && !it.declinedBy.contains(did) &&
@@ -1608,6 +1630,9 @@ class AppStore {
     }
 
     private val declineAt = mutableMapOf<Id, Long>()
+    private var offerBaseline: MutableMap<String, Double>? = null
+    private var offerBaselineDriver: Id? = null
+    private var wasOffline = true
 
     fun declineOffer(order: Order) {
         val did = session?.driverID ?: return

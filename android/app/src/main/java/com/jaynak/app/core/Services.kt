@@ -243,6 +243,7 @@ object OrdersService {
         val payment: String = "cash",
         val note: String = "",
         val createdAt: Double = 0.0,
+        val offeredAt: Double = 0.0,
         val driverID: String? = null,
         val customerPhone: String = "",
 

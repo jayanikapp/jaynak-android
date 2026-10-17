@@ -109,8 +109,11 @@ class DriverLocationService : Service() {
                     val feed = OrdersService.feed()
                     val all = (feed.offers + feed.board).filter { it.status == "searching" }
                     val ids = all.map { it.id }.toSet()
+                    val keys = all.map { it.id + "@" + it.offeredAt }.toSet()
                     for (o in all) {
-                        if (o.id in seen) continue
+                        val key = o.id + "@" + o.offeredAt
+                        // أول قراءة بعد الدخول/الاتصال: صامتة (الطلبات القديمة في القوائم فقط)
+                        if (first || key in seen) continue
                         val open = PendingIntent.getActivity(
                             this, 0, Intent(this, MainActivity::class.java),
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -128,8 +131,8 @@ class DriverLocationService : Service() {
                         runCatching { nm.notify(o.id.hashCode(), n) }
                     }
                     // طلب اختفى (قَبِله غيرك أو أُلغي): نسحب إشعاره
-                    for (gone in seen - ids) nm.cancel(gone.hashCode())
-                    seen = ids
+                    for (gone in seen - keys) nm.cancel(gone.substringBefore("@").hashCode())
+                    seen = keys
                     first = false
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
