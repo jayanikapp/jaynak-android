@@ -39,6 +39,7 @@ class AppStore {
     var pointsRules by mutableStateOf(PointsRules())
     var pointsHistory by mutableStateOf<List<PointsEntry>>(emptyList())
     private var pointsSeq = 0
+    private val lastPoints = mutableMapOf<String, Int>()
     var promos by mutableStateOf(listOf<PromoCode>())
     var tickets by mutableStateOf(listOf<SupportTicket>())
     var chats by mutableStateOf(listOf<ChatMessage>())
@@ -572,6 +573,14 @@ class AppStore {
         if (j.has("enabled")) pr = pr.copy(enabled = j.optBoolean("enabled", pr.enabled))
         if (pr != pointsRules) pointsRules = pr
         val pts = j.optInt("points", 0)
+        lastPoints[role]?.let { last ->
+            if (last != pts) {
+                val d = pts - last
+                toast = Toast(text = "نقاطك: ${if (d > 0) "+" else "−"}${kotlin.math.abs(d)} ← الرصيد $pts",
+                    kind = if (d > 0) Toast.Kind.success else Toast.Kind.error)
+            }
+        }
+        lastPoints[role] = pts
         if (role == "driver") {
             val di = drivers.indexOfFirst { it.id == sess.driverID }
             if (di >= 0 && drivers[di].tierPoints != pts) drivers = drivers.mapAt(di) { it.copy(tierPoints = pts) }
@@ -1186,6 +1195,10 @@ class AppStore {
         val i = orders.indexOfFirst { it.id == order.id }
         if (i < 0) return
         if (!orders[i].status.isLive) return
+        // المندوب لا يلغي بعد الاستلام نهائياً
+        if (by == UserRole.driver && orders[i].status != OrderStatus.assigned && orders[i].status != OrderStatus.pickingUp) {
+            toast = Toast(text = "لا يمكن إلغاء الطلب بعد استلامه", kind = Toast.Kind.error); return
+        }
         orders = orders.mapAt(i) { it.copy(status = OrderStatus.cancelled, cancelledReason = reason) }
         val did = orders[i].driverID
         if (did != null) {

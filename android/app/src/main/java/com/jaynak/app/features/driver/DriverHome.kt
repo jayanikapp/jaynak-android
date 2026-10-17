@@ -316,8 +316,9 @@ fun ActiveTripCard(order: Order) {
             if (order.status == com.jaynak.app.core.OrderStatus.pickingUp ||
                 order.status == com.jaynak.app.core.OrderStatus.assigned) {
                 Text(
-                    "إلغاء الطلب", style = MBType.callout, color = MB.red,
-                    modifier = Modifier.fillMaxWidth().pressable { showCancel = true }.padding(vertical = 10.dp),
+                    "إلغاء الطلب (قبل الاستلام)", style = MBType.callout, color = MB.red,
+                    modifier = Modifier.fillMaxWidth().background(MB.red.copy(alpha = 0.12f), androidx.compose.foundation.shape.RoundedCornerShape(50))
+                        .pressable { showCancel = true }.padding(vertical = 12.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
@@ -353,7 +354,9 @@ fun ActiveTripCard(order: Order) {
     if (showCancel) {
         com.jaynak.app.design.ActionDialog(
             title = "إلغاء الطلب؟",
-            message = "سيعود الطلب للبحث عن مندوب آخر.",
+            message = store.pointsRules.let { r ->
+                if (r.enabled && r.dCancelAfter > 0) "سيعود الطلب لمندوب آخر ويُخصم منك ${r.dCancelAfter} نقطة. بعد الاستلام لا يمكن الإلغاء."
+                else "سيعود الطلب لمندوب آخر. بعد الاستلام لا يمكن الإلغاء." },
             actions = listOf("لا أستطيع الوصول", "تعطّلت مركبتي", "سبب آخر").map { r ->
                 com.jaynak.app.design.DialogAction(r, destructive = true) {
                     store.cancelOrder(order, r, com.jaynak.app.core.UserRole.driver)
