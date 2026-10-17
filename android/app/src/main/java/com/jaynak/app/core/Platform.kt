@@ -174,8 +174,38 @@ object Feedback {
         }
     }
 
+    // ── نغمات الطلبات القابلة للاختيار (يحفظها المندوب في إعداداته) ──
+    val offerTones: List<Pair<String, String>> = listOf(
+        "auto" to "تلقائي (الافتراضي)", "classic" to "كلاسيكية", "bell" to "جرس", "digital" to "رقمية",
+        "calm" to "هادئة", "alarm" to "منبّه", "siren" to "صفّارة عالية",
+    )
+    private val toneSets: Map<String, List<Tone>> = mapOf(
+        "classic" to listOf(Tone(880.0, 0.16), Tone(1174.7, 0.30)),
+        "bell" to listOf(Tone(1318.5, 0.12), Tone(1568.0, 0.12), Tone(2093.0, 0.40)),
+        "digital" to listOf(Tone(1000.0, 0.08), Tone(0.0, 0.06), Tone(1000.0, 0.08), Tone(1400.0, 0.22)),
+        "calm" to listOf(Tone(523.3, 0.25), Tone(659.3, 0.25), Tone(784.0, 0.45)),
+        "alarm" to listOf(Tone(1500.0, 0.15), Tone(1100.0, 0.15), Tone(1500.0, 0.15), Tone(1100.0, 0.15)),
+    )
+    private val soundPrefs get() = Boot.app.getSharedPreferences("jaynak.sound", 0)
+    var offerToneId by androidx.compose.runtime.mutableStateOf(
+        runCatching { soundPrefs.getString("offerTone", "auto") ?: "auto" }.getOrDefault("auto"))
+        private set
+
+    fun chooseOfferTone(id: String) {
+        offerToneId = id
+        runCatching { soundPrefs.edit().putString("offerTone", id).apply() }
+    }
+
+    fun offerToneTitle(): String = offerTones.firstOrNull { it.first == offerToneId }?.second ?: "تلقائي"
+
+    /** تجربة نغمة قبل اختيارها. */
+    fun previewOfferTone(id: String) {
+        if (id == "siren") urgentOffer() else play(toneSets[id] ?: toneSets.getValue("classic"), 0.6f)
+    }
+
     fun newOffer() {
-        play(listOf(Tone(880.0, 0.16), Tone(1174.7, 0.30)), 0.6f)
+        if (offerToneId == "siren") { urgentOffer(); return }
+        play(toneSets[offerToneId] ?: toneSets.getValue("classic"), 0.6f)
         impact(ImpactStyle.heavy)
     }
 
@@ -248,7 +278,7 @@ object Feedback {
         stopOfferAlert()
         repeatJob = scope.launch {
             for (i in 0 until (if (urgent) 6 else 4)) {
-                if (urgent) { urgentOffer(); delay(2_400) } else { newOffer(); delay(2_200) }
+                if (urgent && offerToneId == "auto") { urgentOffer(); delay(2_400) } else { newOffer(); delay(if (offerToneId == "siren") 2_400 else 2_200) }
                 if (!isActive) return@launch
             }
         }

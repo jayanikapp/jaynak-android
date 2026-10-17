@@ -57,6 +57,7 @@ fun DriverProfileView() {
     var showDocs by remember { mutableStateOf(false) }
     var showCar by remember { mutableStateOf(false) }
     var showAvatar by remember { mutableStateOf(false) }
+    var showTone by remember { mutableStateOf(false) }
     val d = store.currentDriver
 
     Box(Modifier.fillMaxSize()) {
@@ -111,6 +112,7 @@ fun DriverProfileView() {
                         SettingsRow("شكل مركبتي على الخريطة", "car.fill",
                             detail = com.jaynak.app.features.shared.CarArt.names[com.jaynak.app.core.LiveTracking.myIcon.coerceIn(0, 4)],
                             action = { showCar = true }),
+                        SettingsRow("نغمة الطلبات", "speaker.wave.2.fill", detail = com.jaynak.app.core.Feedback.offerToneTitle(), action = { showTone = true }),
                         SettingsRow("الدعم الفني", "bubble.left.and.text.bubble.right.fill", badge = store.unread("support"), action = { showSupport = true }),
                         SettingsRow("الشروط وسياسة الخصوصية", "hand.raised.fill", action = { showLegal = true }),
                     ), tint = MB.red)
@@ -127,6 +129,7 @@ fun DriverProfileView() {
     }
 
     if (showCar) VehicleIconSheet { showCar = false }
+    if (showTone) OfferToneSheet { showTone = false }
     if (showAvatar && d != null) com.jaynak.app.features.shared.AvatarEditSheet("driver", d.name) { showAvatar = false }
     if (showLegal) LegalView(initialAudience = UserRole.driver, onDismiss = { showLegal = false })
     if (showDocs && d != null) {

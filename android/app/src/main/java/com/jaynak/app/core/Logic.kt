@@ -236,8 +236,20 @@ object Dispatch {
 
     data class BoardItem(val order: Order, val km: Double, val onPath: Boolean)
 
-    fun board(driver: Driver?, orders: List<Order>, balanceFloor: Double): List<BoardItem> {
-        val list = openBoard(orders)
+    /** الطلبات السريعة (الأقرب) المعروضة على هذا المندوب ولم يستلمها أحد بعد. */
+    fun expressBoard(driver: Driver?, orders: List<Order>, driverID: String?, balanceFloor: Double): List<BoardItem> {
+        val list = orders.filter {
+            it.status == OrderStatus.searching && it.driverID == null &&
+                it.dispatchMode == DispatchMode.nearby && !it.promotedToOpen &&
+                driverID != null && it.offeredTo.contains(driverID)
+        }.sortedByDescending { it.createdAt }
+        return boardOf(list, driver, balanceFloor)
+    }
+
+    fun board(driver: Driver?, orders: List<Order>, balanceFloor: Double): List<BoardItem> =
+        boardOf(openBoard(orders), driver, balanceFloor)
+
+    private fun boardOf(list: List<Order>, driver: Driver?, balanceFloor: Double): List<BoardItem> {
         val d = driver ?: return list.map { BoardItem(it, 0.0, false) }
 
         if (d.earningsBalance < balanceFloor) return emptyList()

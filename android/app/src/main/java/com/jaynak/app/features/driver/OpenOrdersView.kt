@@ -61,12 +61,20 @@ fun OpenOrdersView() {
     val store = LocalStore.current
     var confirming by remember { mutableStateOf<Order?>(null) }
     val d = store.currentDriver
-    val board = store.openBoard
+    var tab by remember { mutableStateOf(0) }       // 0 = مفتوحة، 1 = سريعة
+    val openList = store.openBoard
+    val expressList = Dispatch.expressBoard(d, store.orders, store.session?.driverID, store.rules.minEarningsBalance)
+    val board = if (tab == 0) openList else expressList
 
     Box(Modifier.fillMaxSize()) {
         BrandBackground()
         Column(Modifier.fillMaxSize()) {
-            NavBar(title = "طلبات مفتوحة")
+            NavBar(title = "الطلبات")
+            Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp)) {
+                com.jaynak.app.design.SegmentedPicker(
+                    listOf("الطلبات المفتوحة (${openList.size})", "الطلبات السريعة (${expressList.size})"),
+                    tab, { tab = it })
+            }
             Column(
                 Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -74,8 +82,10 @@ fun OpenOrdersView() {
                 if (d != null && d.isDestinationMode) DestinationBanner(d)
 
                 if (board.isEmpty()) {
-                    EmptyStateView("tray", "لا طلبات مفتوحة الآن",
+                    if (tab == 0) EmptyStateView("tray", "لا طلبات مفتوحة الآن",
                         "الطلبات التي ينشرها العملاء لكل المندوبين تظهر هنا")
+                    else EmptyStateView("bolt.fill", "لا طلبات سريعة الآن",
+                        "الطلبات السريعة القريبة منك تظهر هنا فور وصولها")
                 } else {
                     Row(Modifier.fillMaxWidth()) {
                         Text("${board.size} طلب متاح", style = MBType.caption, color = MB.ink2)
@@ -124,6 +134,9 @@ private fun BoardRow(item: Dispatch.BoardItem, onTap: () -> Unit) {
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically) {
+            if (o.dispatchMode == com.jaynak.app.core.DispatchMode.nearby && !o.promotedToOpen)
+                MBChip("⚡ سريع", tint = MB.gold, filled = true)
+            else MBChip("مفتوح", symbol = "tray", tint = MB.ink2)
             if (item.onPath) MBChip("على مسارك", symbol = "location.north.line.fill", tint = MB.green, filled = true)
             if (o.promotedToOpen) MBChip("لم يجد مندوباً قريباً", symbol = "clock.arrow.circlepath", tint = MB.gold)
             MBChip(o.kind.title, symbol = o.kind.symbol)

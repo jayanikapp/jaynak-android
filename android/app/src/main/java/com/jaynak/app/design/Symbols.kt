@@ -42,6 +42,7 @@ fun sfVector(name: String): ImageVector = when (name) {
     "bag.fill" -> Icons.Filled.ShoppingBag
     "banknote.fill" -> Icons.Filled.Payments
     "bell.fill" -> Icons.Filled.Notifications
+    "speaker.wave.2.fill" -> Icons.Filled.Notifications
     "bolt.fill" -> Icons.Filled.Bolt
     "bubble.left.and.bubble.right", "bubble.left.and.bubble.right.fill",
     "bubble.left.and.text.bubble.right.fill" -> Icons.Filled.Forum

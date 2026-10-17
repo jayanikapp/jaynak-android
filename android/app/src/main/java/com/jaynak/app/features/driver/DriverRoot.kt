@@ -118,7 +118,7 @@ private fun DriverTabs(d: Driver) {
     TabScaffold(
         tabs = listOf(
             TabItem("الرئيسية", "house.fill"),
-            TabItem("طلبات مفتوحة", "list.bullet.rectangle.portrait.fill"),
+            TabItem("الطلبات", "list.bullet.rectangle.portrait.fill"),
             TabItem("رحلاتي", "clock.arrow.circlepath"),
             TabItem("أرباحي", "banknote.fill"),
             TabItem("حسابي", "person.crop.circle.fill"),
