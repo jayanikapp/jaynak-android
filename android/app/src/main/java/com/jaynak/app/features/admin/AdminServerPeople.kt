@@ -136,14 +136,17 @@ private fun AdjustSheet(user: JSONObject, role: String, onDone: suspend () -> Un
     val scope = rememberCoroutineScope()
     var wallet by remember { mutableStateOf("") }
     var points by remember { mutableStateOf("") }
+    var deduct by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     PanelSheet(user.ps("name").ifEmpty { user.ps("phone") }, onDismiss) {
-        Text("القيمة تُضاف للرصيد الحالي (استخدم سالباً للخصم). المبلغ يقابله حساب المحفظة الأساسية.", style = MBType.micro, color = MB.ink2)
+        Text("اختر إضافة أو خصم ثم اكتب القيمة. النقاط يجوز أن تصير سالبة (مثلاً 10 − 12 = −2). مبلغ المحفظة يقابله حساب المحفظة الأساسية.", style = MBType.micro, color = MB.ink2)
+        com.jaynak.app.design.SegmentedPicker(listOf("إضافة", "خصم"), if (deduct) 1 else 0, { deduct = it == 1 })
         MBField("تعديل الرصيد (ر.ع)", wallet, { wallet = it }, placeholder = "0", keyboard = KeyboardType.Decimal, isRTLText = false)
         MBField("تعديل النقاط", points, { points = it }, placeholder = "0", keyboard = KeyboardType.Number, isRTLText = false)
         PrimaryCTA("حفظ", {
-            val w = Panel.num(wallet) ?: 0.0
-            val p = (Panel.num(points) ?: 0.0).toInt()
+            val sg = if (deduct) -1 else 1
+            val w = kotlin.math.abs(Panel.num(wallet) ?: 0.0) * sg
+            val p = kotlin.math.abs((Panel.num(points) ?: 0.0).toInt()) * sg
             if (w == 0.0 && p == 0) {
                 store.toast = com.jaynak.app.core.AppStore.Toast(text = "أدخل قيمة صحيحة", kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
             } else {
