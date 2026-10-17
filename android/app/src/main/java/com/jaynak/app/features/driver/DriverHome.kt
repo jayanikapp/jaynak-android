@@ -136,6 +136,7 @@ fun DriverHome(onOpenTrip: () -> Unit) {
             Box(Modifier.fillMaxWidth().appearIn(1)) {
                 if (actives.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     actives.forEach { key(it.id) { ActiveTripCard(it) } }
+                    PresenceCard()
                 } else PresenceCard()
             }
 

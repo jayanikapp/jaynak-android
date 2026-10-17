@@ -126,7 +126,7 @@ private fun DriverTabs(d: Driver) {
         selected = tab,
         onSelect = { tab = it },
         accessory = {
-            if (active != null) LiveTripPill(active) else PresenceAccessory(d)
+            if (active != null) LiveTripPill(active, d) else PresenceAccessory(d)
         },
     ) { i ->
         when (i) {
@@ -153,7 +153,8 @@ fun PresenceAccessory(driver: Driver) {
 }
 
 @Composable
-fun LiveTripPill(order: Order) {
+fun LiveTripPill(order: Order, driver: Driver) {
+    val store = LocalStore.current
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(30.dp).background(MB.red.copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
@@ -164,6 +165,9 @@ fun LiveTripPill(order: Order) {
             Text(order.ref, style = MBType.num(11, FontWeight.Medium), color = MB.ink2)
         }
         Text(order.price.driverPayout.moneyShort, style = MBType.num(15, FontWeight.Bold), color = MB.green)
+        // زر الاتصال/عدم الاتصال يبقى متاحاً حتى مع وجود طلب جارٍ
+        MBToggle(driver.presence != DriverPresence.offline,
+            { store.setPresence(if (it) DriverPresence.online else DriverPresence.offline) })
     }
 }
 
