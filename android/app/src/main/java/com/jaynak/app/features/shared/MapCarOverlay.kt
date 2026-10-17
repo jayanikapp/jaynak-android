@@ -91,7 +91,8 @@ class MapCarOverlay(private val density: Float) : Overlay() {
             s.rot += d * kr
 
             if (abs(s.tLat - s.lat) + abs(s.tLon - s.lon) > 1e-7 || abs(d) > 0.5f) animating = true
-            proj.toPixels(gp.setCoords(s.lat, s.lon), pt)
+            gp.setCoords(s.lat, s.lon)
+            proj.toPixels(gp, pt)
             drawCar(c, s, pt.x.toFloat(), pt.y.toFloat(), now)
         }
         // النبض يحتاج إعادة رسم، لكن بمعدل ~24 إطاراً/ث فقط حتى لا يثقل السحب
