@@ -1071,9 +1071,9 @@ class AppStore {
             var released = false
             orders = orders.map {
                 if (it.driverID == did && it.remoteID != null && it.status.isLive && it.remoteID !in activeIds &&
-                    nowMs() - (it.acceptedAt ?: 0L) > 20000) {
+                    it.status != OrderStatus.searching && nowMs() - (it.acceptedAt ?: 0L) > 20000) {
                     released = true
-                    it.copy(status = OrderStatus.cancelled, cancelledReason = "أُلغي")
+                    it.copy(status = OrderStatus.cancelled, driverID = null, cancelledReason = "أُلغي")
                 } else it
             }
             if (released) {
@@ -1164,7 +1164,9 @@ class AppStore {
                     (it.status == OrderStatus.delivered && status != OrderStatus.cancelled)
                 it.copy(
                     status = if (keepLocal) it.status else status,
-                    driverID = if (remote.driverID != null && status.isLive) did else it.driverID,
+                    driverID = if (remote.driverID != null && status.isLive) did
+                        else if (remote.driverID == null && status == OrderStatus.searching && it.driverID == did) null
+                        else it.driverID,
                     offeredTo = if (asBoard || it.offeredTo.contains(did)) it.offeredTo else it.offeredTo + did,
                     // السيرفر هو المرجع: ظهور الطلب في عروضي بعد رفضي بمدة = أعادت الإدارة توزيعه
                     declinedBy = if (!asBoard && did in it.declinedBy && nowMs() - (declineAt[it.id] ?: 0L) > 15000)
