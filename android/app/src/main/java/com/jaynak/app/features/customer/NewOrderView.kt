@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.jaynak.app.core.AppStore.Toast
 import com.jaynak.app.core.DispatchMode
 import com.jaynak.app.core.Feedback
 import com.jaynak.app.core.Fmt
@@ -94,6 +95,8 @@ fun NewOrderView(
     var note by remember { mutableStateOf("") }
     var recipientName by remember { mutableStateOf("") }
     var recipientPhone by remember { mutableStateOf("") }
+    var pickupLink by remember { mutableStateOf("") }
+    var dropoffLink by remember { mutableStateOf("") }
     var promoText by remember { mutableStateOf("") }
     var voucher by remember { mutableStateOf<Voucher?>(null) }
     var dispatchMode by remember { mutableStateOf(DispatchMode.nearby) }
@@ -255,6 +258,15 @@ fun NewOrderView(
                     }
                 }
 
+                // روابط المواقع (اختياري)
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionHeader("روابط المواقع (اختياري)", symbol = "mappin.and.ellipse")
+                    MBField("رابط موقع الاستلام", pickupLink, { pickupLink = it }, placeholder = "الصق رابط جوجل ماب",
+                        symbol = "mappin.and.ellipse", isRTLText = false)
+                    MBField("رابط موقع التسليم", dropoffLink, { dropoffLink = it }, placeholder = "الصق رابط جوجل ماب",
+                        symbol = "flag.checkered", isRTLText = false)
+                }
+
                 // تفاصيل المستلم
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionHeader("تفاصيل المستلم", symbol = "person.fill")
@@ -405,6 +417,20 @@ fun NewOrderView(
                 enabled = canSubmit, loading = submitting, modifier = Modifier.weight(1f))
         }
     }
+
+    // رابط موقع الاستلام/التسليم: يتحدد الدبوس ويُرسل الرابط للمندوب
+    suspend fun applyLink(text: String, from: Boolean) {
+        val t = text.trim()
+        if (!com.jaynak.app.core.MapLinks.looksLikeLink(t)) return
+        val c = com.jaynak.app.core.MapLinks.resolve(t)
+        if (c == null) { store.toast = Toast(text = "لم نستطع قراءة الموقع من هذا الرابط", kind = Toast.Kind.error); return }
+        val zone = com.jaynak.app.core.PlaceSearch.area(c) ?: Geo.nearestZone(c)
+        val name = com.jaynak.app.core.PlaceSearch.reverse(c) ?: zone
+        val place = Place(name = name, zone = zone, coord = c, details = "من رابط الموقع", link = t)
+        if (from) pickup = place else dropoff = place
+    }
+    LaunchedEffect(pickupLink) { if (pickupLink.isNotBlank()) { kotlinx.coroutines.delay(400); applyLink(pickupLink, true) } }
+    LaunchedEffect(dropoffLink) { if (dropoffLink.isNotBlank()) { kotlinx.coroutines.delay(400); applyLink(dropoffLink, false) } }
 
     picking?.let { target ->
         PlacePicker(

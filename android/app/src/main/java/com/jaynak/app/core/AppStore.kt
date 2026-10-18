@@ -1219,11 +1219,11 @@ class AppStore {
     companion object {
         fun point(place: Place): OrdersService.Point =
             OrdersService.Point(lat = place.coord.lat, lon = place.coord.lon,
-                zone = place.zone, name = place.name)
+                zone = place.zone, name = place.name, link = place.link ?: "")
 
         fun place(p: OrdersService.Point): Place =
             Place(name = if (p.name.isEmpty()) p.zone else p.name,
-                zone = p.zone, coord = Coord(p.lat, p.lon))
+                zone = p.zone, coord = Coord(p.lat, p.lon), link = p.link.ifEmpty { null })
     }
 
     private fun notifyDriverOfOffer(order: Order, candidates: List<Driver>) {

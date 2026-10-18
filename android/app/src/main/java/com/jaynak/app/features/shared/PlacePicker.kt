@@ -79,6 +79,7 @@ fun PlacePicker(
 
     var query by remember { mutableStateOf("") }
     var pinZone by remember { mutableStateOf("") }
+    var usedLink by remember { mutableStateOf<String?>(null) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(lifecycle) {
@@ -125,6 +126,7 @@ fun PlacePicker(
         if (com.jaynak.app.core.MapLinks.looksLikeLink(q)) {
             val c = com.jaynak.app.core.MapLinks.resolve(q)
             if (c != null) {
+                usedLink = q
                 results = emptyList(); showList = false; named = false
                 flyTo(c, 17.0)
             } else linkError = true
@@ -300,7 +302,7 @@ fun PlacePicker(
                         onClick = {
                             Feedback.success()
                             onPick(Place(name = pinName.ifEmpty { (pinZone.ifEmpty { Geo.nearestZone(pinCoord) }) },
-                                zone = (pinZone.ifEmpty { Geo.nearestZone(pinCoord) }), coord = pinCoord, details = "نقطة على الخريطة"))
+                                zone = (pinZone.ifEmpty { Geo.nearestZone(pinCoord) }), coord = pinCoord, details = "نقطة على الخريطة", link = usedLink))
                             onDismiss()
                         })
                 }

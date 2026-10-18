@@ -213,6 +213,7 @@ object OrdersService {
         val lon: Double,
         val zone: String = "",
         val name: String = "",
+        val link: String = "",
     )
 
     @Serializable

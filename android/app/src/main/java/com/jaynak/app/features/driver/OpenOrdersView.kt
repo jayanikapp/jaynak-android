@@ -181,7 +181,7 @@ private fun BoardRow(item: Dispatch.BoardItem, onTap: () -> Unit) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
             Text("الملاحة", style = MBType.micro, color = MB.green,
                 modifier = Modifier.clickableNoRipple {
-                    com.jaynak.app.features.shared.NavigationLauncher.open(ctx, o.pickup.coord, o.pickup.name)
+                    com.jaynak.app.features.shared.NavigationLauncher.open(ctx, o.pickup.coord, o.pickup.name, o.pickup.link)
                 }.padding(horizontal = 10.dp, vertical = 6.dp))
             Text("اضغط للقبول", style = MBType.micro, color = MB.green)
         }

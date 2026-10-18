@@ -343,12 +343,12 @@ fun ActiveTripCard(order: Order) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     Modifier.weight(1f).glassSurface(23.dp, null, 0.08f)
-                        .pressable { NavigationLauncher.open(context, target.coord, target.name) }.padding(vertical = 12.dp),
+                        .pressable { NavigationLauncher.open(context, target.coord, target.name, target.link) }.padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SFIcon("location.north.line.fill", size = 14.dp, tint = MB.green)
-                    Text("الملاحة", style = MBType.callout, color = MB.green)
+                    Text(if (toDropoff) "ملاحة للتسليم" else "ملاحة للاستلام", style = MBType.callout, color = MB.green)
                 }
                 GlassIconButton("phone.fill", { customer?.let { NavigationLauncher.call(context, it.phone) } },
                     size = 46.dp, iconSize = 15.dp, tint = MB.ink)

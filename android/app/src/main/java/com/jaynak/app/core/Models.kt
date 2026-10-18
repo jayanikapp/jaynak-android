@@ -173,6 +173,8 @@ data class Place(
     val zone: String,
     val coord: Coord,
     val details: String = "",
+    /** رابط الموقع الأصلي الذي ألصقه الزبون (جوجل ماب…) — يفتحه المندوب مباشرة. */
+    val link: String? = null,
 )
 
 @Serializable

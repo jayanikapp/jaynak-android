@@ -361,8 +361,14 @@ fun DriverPuck() {
 
 /** مقابل NavigationLauncher: Google Maps ثم Waze ثم المتصفح. */
 object NavigationLauncher {
-    fun open(context: Context, coord: Coord, name: String) {
+    fun open(context: Context, coord: Coord, name: String, link: String? = null) {
         val lat = coord.lat; val lon = coord.lon
+        // رابط الزبون الأصلي أدق: يُفتح مباشرة (تطبيق جوجل ماب إن وُجد)
+        val l = link?.trim().orEmpty()
+        if (l.startsWith("http")) {
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(l)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runCatching { context.startActivity(i) }.isSuccess) return
+        }
         val tries = listOf(
             Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$lat,$lon&mode=d")).setPackage("com.google.android.apps.maps"),
             Intent(Intent.ACTION_VIEW, Uri.parse("waze://?ll=$lat,$lon&navigate=yes")),
