@@ -78,6 +78,7 @@ fun PlacePicker(
     val clipboard = LocalClipboardManager.current
 
     var query by remember { mutableStateOf("") }
+    var pinZone by remember { mutableStateOf("") }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(lifecycle) {
@@ -144,6 +145,7 @@ fun PlacePicker(
         val c = m.mapCenter
         val coord = Coord(c.latitude, c.longitude)
         pinCoord = coord
+        com.jaynak.app.core.PlaceSearch.area(coord)?.let { pinZone = it }
         if (!named) {
             resolving = true
             com.jaynak.app.core.PlaceSearch.reverse(coord)?.let { if (!named) pinName = it }
@@ -292,12 +294,12 @@ fun PlacePicker(
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     MBField("وصف المكان", pinName, { named = it.isNotEmpty(); pinName = it },
                         placeholder = "مثال: منزل ١٢، شارع ٣", symbol = "text.alignright")
-                    KeyValueRow("الولاية", Geo.nearestZone(pinCoord), isNumber = false)
+                    KeyValueRow("الولاية", (pinZone.ifEmpty { Geo.nearestZone(pinCoord) }), isNumber = false)
                     PrimaryCTA("تثبيت هذه النقطة", symbol = "mappin.and.ellipse", tint = tint,
                         onClick = {
                             Feedback.success()
-                            onPick(Place(name = pinName.ifEmpty { Geo.nearestZone(pinCoord) },
-                                zone = Geo.nearestZone(pinCoord), coord = pinCoord, details = "نقطة على الخريطة"))
+                            onPick(Place(name = pinName.ifEmpty { (pinZone.ifEmpty { Geo.nearestZone(pinCoord) }) },
+                                zone = (pinZone.ifEmpty { Geo.nearestZone(pinCoord) }), coord = pinCoord, details = "نقطة على الخريطة"))
                             onDismiss()
                         })
                 }

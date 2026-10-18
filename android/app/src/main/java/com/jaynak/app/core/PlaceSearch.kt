@@ -60,6 +60,21 @@ object PlaceSearch {
         }.getOrNull()?.takeIf { it.isNotBlank() }
     }
 
+    /** الولاية/المنطقة الفعلية للإحداثيات (بدل أقرب منطقة من قائمة ثابتة). */
+    suspend fun area(c: Coord): String? = withContext(Dispatchers.IO) {
+        val g = runCatching {
+            @Suppress("DEPRECATION")
+            val m = Geocoder(Boot.app, Locale("ar", "OM")).getFromLocation(c.lat, c.lon, 1)?.firstOrNull()
+            listOf(m?.subAdminArea, m?.locality, m?.adminArea).firstOrNull { !it.isNullOrBlank() }
+        }.getOrNull()
+        if (!g.isNullOrBlank()) return@withContext g
+        runCatching {
+            val u = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=ar&zoom=10&lat=${c.lat}&lon=${c.lon}"
+            val a = JSONObject(get(u)).optJSONObject("address")
+            listOf("county", "city", "town", "state_district", "state").firstNotNullOfOrNull { k -> a?.optString(k)?.takeIf { it.isNotBlank() } }
+        }.getOrNull()
+    }
+
     private fun get(url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.setRequestProperty("User-Agent", "jaynak-android")
