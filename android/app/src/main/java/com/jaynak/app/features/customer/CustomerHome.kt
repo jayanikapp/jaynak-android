@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,8 +81,13 @@ fun CustomerHome(onNewOrder: (OrderKind) -> Unit, onOpenLive: () -> Unit) {
     val recent: List<Order> = store.session?.customerID?.let { cid ->
         store.orders.filter { it.customerID == cid && !it.status.isLive }.take(3)
     } ?: emptyList()
-    val onlineDrivers: List<Coord> = store.nearbyDrivers.ifEmpty {
-        store.drivers.filter { it.presence == DriverPresence.online }.map { it.coord } }
+    LaunchedEffect(Unit) {
+        com.jaynak.app.core.LocationService.locate()
+        while (true) {
+            store.refreshNearbyDrivers(com.jaynak.app.core.LocationService.current ?: com.jaynak.app.core.Geo.cityCenter)
+            kotlinx.coroutines.delay(8_000)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -93,7 +99,7 @@ fun CustomerHome(onNewOrder: (OrderKind) -> Unit, onOpenLive: () -> Unit) {
 
             if (live != null) LiveCard(live, onOpenLive, Modifier.appearIn(1))
 
-            OrderCTA(onlineDrivers, onNewOrder, Modifier.appearIn(if (live == null) 1 else 2))
+            OrderCTA(onNewOrder, Modifier.appearIn(if (live == null) 1 else 2))
 
             if (customer != null && customer.savedPlaces.isNotEmpty()) {
                 Column(Modifier.appearIn(3), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -189,18 +195,41 @@ private fun LiveCard(o: Order, onOpenLive: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-private fun OrderCTA(onlineDrivers: List<Coord>, onNewOrder: (OrderKind) -> Unit, modifier: Modifier = Modifier) {
+private fun OrderCTA(onNewOrder: (OrderKind) -> Unit, modifier: Modifier = Modifier) {
+    val store = LocalStore.current
+    var showFull by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth().glassSurface(Metrics.cardRadius)) {
         Box(
-            Modifier.fillMaxWidth().height(168.dp)
+            Modifier.fillMaxWidth().height(220.dp)
                 .clip(RoundedCornerShape(topStart = Metrics.cardRadius, topEnd = Metrics.cardRadius)),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            MapCanvas(pickup = null, dropoff = null, nearby = onlineDrivers, showRoute = false, interactive = false)
+            NearbyMap(Modifier.fillMaxSize())
             MapOverlayChip(Modifier.padding(bottom = 12.dp)) {
                 Box(Modifier.size(7.dp).background(MB.green, CircleShape))
                 Spacer(Modifier.width(6.dp))
-                Text("${onlineDrivers.size} مندوب متصل قريب منك", style = MBType.micro, color = Color.White)
+                Text("${store.nearbyCars.size} مندوب متصل ضمن ${store.nearbyRadiusKm.toInt()} كم",
+                    style = MBType.micro, color = Color.White)
+            }
+            Box(
+                Modifier.align(Alignment.TopStart).padding(12.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                    .clickable { showFull = true }.padding(9.dp),
+            ) { SFIcon("arrow.up.left.and.arrow.down.right", size = 14.dp, tint = Color.White) }
+        }
+        if (showFull) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showFull = false },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    NearbyMap(Modifier.fillMaxSize())
+                    Box(
+                        Modifier.align(Alignment.TopStart).statusBarsPadding().padding(14.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            .clickable { showFull = false }.padding(horizontal = 16.dp, vertical = 9.dp),
+                    ) { Text("إغلاق", style = MBType.micro, color = Color.White) }
+                }
             }
         }
 
@@ -311,4 +340,26 @@ fun OrderRow(order: Order, modifier: Modifier = Modifier, showCustomer: Boolean 
             StatusBadge(order.status)
         }
     }
+}
+
+
+/** خريطة المندوبين المتصلين القريبين: سيارات خضراء حيّة داخل دائرة نصف القطر التي تضبطها الإدارة. */
+@Composable
+private fun NearbyMap(modifier: Modifier = Modifier) {
+    val store = LocalStore.current
+    val me = com.jaynak.app.core.LocationService.current ?: com.jaynak.app.core.Geo.cityCenter
+    val cars = store.nearbyCars.map {
+        com.jaynak.app.features.shared.CarMarker(it.id, it.coord, it.heading, MB.green, icon = it.icon)
+    }
+    val fit = listOf(me) + store.nearbyCars.map { it.coord }
+    MapCanvas(
+        pickup = null, dropoff = null, modifier = modifier, showRoute = false, interactive = true,
+        cars = cars, followDriver = false,
+        fitPoints = if (fit.size > 1) fit else {
+            val d = minOf(store.nearbyRadiusKm, 30.0) / 111.0 * 0.8
+            listOf(com.jaynak.app.core.Coord(me.lat + d, me.lon + d), com.jaynak.app.core.Coord(me.lat - d, me.lon - d))
+        },
+        fitKey = "${store.nearbyCars.size}-${(me.lat * 50).toInt()}",
+        radiusKm = store.nearbyRadiusKm, radiusCenter = me,
+    )
 }

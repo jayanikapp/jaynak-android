@@ -117,7 +117,7 @@ private fun RootView(store: AppStore) {
             store.blockedReason = ""
             while (true) {
                 store.pollBlockedReason()
-                store.refreshNearbyDrivers()
+                store.refreshNearbyDrivers(store.currentDriver?.coord)
                 delay(20_000)
             }
         }

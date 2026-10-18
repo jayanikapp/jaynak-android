@@ -94,6 +94,8 @@ fun MapCanvas(
     followDriver: Boolean = true,
     driverStale: Boolean = false,
     driverIcon: Int = 0,
+    radiusKm: Double = 0.0,
+    radiusCenter: Coord? = null,
 ) {
     val ctx = LocalContext.current
     val dark = MB.dark
@@ -206,9 +208,23 @@ fun MapCanvas(
             },
             update = { map ->
                 MapTiles.apply(map, dark)
-                val sig = "${MapTiles.style}|${routeCoords.size}|${routeCoords.firstOrNull()}|${routeCoords.lastOrNull()}|${green.toArgb()}"
+                val sig = "${MapTiles.style}|${routeCoords.size}|${routeCoords.firstOrNull()}|${routeCoords.lastOrNull()}|${green.toArgb()}|$radiusKm|${radiusCenter?.let { "%.3f,%.3f".format(java.util.Locale.US, it.lat, it.lon) }}"
                 val routeChanged = map.tag != sig
-                if (routeChanged) { map.tag = sig; map.overlays.removeAll { it is Polyline } }
+                if (routeChanged) {
+                    map.tag = sig
+                    map.overlays.removeAll { it is Polyline || it is org.osmdroid.views.overlay.Polygon }
+                    if (radiusKm > 0 && radiusCenter != null) {
+                        map.overlays.add(0, org.osmdroid.views.overlay.Polygon(map).apply {
+                            points = org.osmdroid.views.overlay.Polygon.pointsAsCircle(
+                                GeoPoint(radiusCenter.lat, radiusCenter.lon), radiusKm * 1000.0)
+                            fillPaint.color = android.graphics.Color.argb(22, 40, 200, 140)
+                            outlinePaint.color = android.graphics.Color.argb(150, 40, 200, 140)
+                            outlinePaint.strokeWidth = 1.5f * density.density
+                            outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(18f, 14f), 0f)
+                            setOnClickListener { _, _, _ -> false }
+                        })
+                    }
+                }
                 if (routeChanged && routeCoords.isNotEmpty()) {
                     val geo = routeCoords.map { GeoPoint(it.lat, it.lon) }
                     // حدّ داكن ثم خط ملوّن فوقه: يظهر المسار واضحاً على أي خلفية

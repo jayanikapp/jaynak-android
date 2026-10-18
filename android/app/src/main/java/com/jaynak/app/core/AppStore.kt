@@ -1698,8 +1698,13 @@ class AppStore {
     var blockedReason by mutableStateOf("")
 
     /** مندوبون متصلون قريبون (موقع حي من السيرفر، بلا أسماء). */
-    var nearbyDrivers by mutableStateOf<List<com.jaynak.app.core.Coord>>(emptyList())
+    var nearbyCars by mutableStateOf<List<NearbyCar>>(emptyList())
         private set
+    var nearbyRadiusKm by mutableStateOf(20.0)
+        private set
+    val nearbyDrivers: List<com.jaynak.app.core.Coord> get() = nearbyCars.map { it.coord }
+
+    data class NearbyCar(val id: String, val coord: com.jaynak.app.core.Coord, val heading: Float?, val icon: Int)
 
     suspend fun pollBlockedReason() {
         if (!OrdersService.isAvailable || session == null) return
@@ -1716,13 +1721,16 @@ class AppStore {
         }
     }
 
-    suspend fun refreshNearbyDrivers() {
+    suspend fun refreshNearbyDrivers(center: com.jaynak.app.core.Coord? = null) {
         if (!OrdersService.isAvailable || session == null) return
-        val j = runCatching { OrdersService.send("api/drivers/nearby", "GET", null) }.getOrNull() ?: return
+        val q = if (center != null) "?lat=${center.lat}&lon=${center.lon}" else ""
+        val j = runCatching { OrdersService.send("api/drivers/nearby$q", "GET", null) }.getOrNull() ?: return
         val a = j.optJSONArray("drivers") ?: return
-        nearbyDrivers = (0 until a.length()).mapNotNull {
+        nearbyRadiusKm = j.optDouble("radiusKm", 20.0)
+        nearbyCars = (0 until a.length()).mapNotNull {
             val o = a.optJSONObject(it) ?: return@mapNotNull null
-            com.jaynak.app.core.Coord(o.optDouble("lat"), o.optDouble("lon"))
+            NearbyCar("n-" + o.optString("id"), com.jaynak.app.core.Coord(o.optDouble("lat"), o.optDouble("lon")),
+                o.optDouble("heading", 0.0).toFloat(), o.optInt("icon", 0))
         }
     }
 
