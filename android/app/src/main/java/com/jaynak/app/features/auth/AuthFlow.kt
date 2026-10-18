@@ -410,7 +410,7 @@ fun PhoneEntryView(
                 Text(if (role == UserRole.driver) "سجّل كمندوب" else "رقم هاتفك",
                     style = MBType.title, color = MB.ink)
                 Text(
-                    reason.ifEmpty { "نرسل لك رمز تحقّق برسالة SMS — بلا كلمة مرور" },
+                    reason.ifEmpty { "نرسل لك رمز تحقّق على واتساب — بلا كلمة مرور" },
                     style = MBType.caption, color = MB.ink2, textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 28.dp))
             }
@@ -470,7 +470,7 @@ fun PhoneEntryView(
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 SFIcon("message.badge.filled.fill", size = 13.dp, tint = MB.green)
-                Text("يوصلك الرمز برسالة SMS على هذا الرقم", style = MBType.caption, color = MB.ink2)
+                Text("يوصلك الرمز على واتساب على هذا الرقم", style = MBType.caption, color = MB.ink2)
             }
 
             // الموافقة
@@ -577,7 +577,7 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
                 Text("أدخل الرمز", style = MBType.title, color = MB.ink)
                 Text(
                     if (AppConfig.apiBaseURL == null) "${AppConfig.otpLength} أرقام — وضع تجربة محلي"
-                    else "أرسلنا ${AppConfig.otpLength} أرقام برسالة SMS",
+                    else "أرسلنا ${AppConfig.otpLength} أرقام على واتساب",
                     style = MBType.caption, color = MB.ink2)
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     Text("${AppConfig.countryDialCode} ${store.challenge?.phone ?: ""}",

@@ -38,7 +38,7 @@ object AppConfig {
     const val otpRequired = true
 
     /** التحقق عبر Firebase بدل Twilio. */
-    const val firebaseEnabled = true
+    const val firebaseEnabled = false
 const val otpLength = 6
     const val otpResendSeconds = 45
 
