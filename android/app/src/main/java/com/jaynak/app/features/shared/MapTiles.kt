@@ -45,8 +45,8 @@ object MapTiles {
 
     private fun load(): MapStyle = runCatching {
         MapStyle.valueOf(
-            Boot.app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("style", MapStyle.clear.name)!!)
-    }.getOrDefault(MapStyle.clear)
+            Boot.app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("style", MapStyle.satellite.name)!!)
+    }.getOrDefault(MapStyle.satellite)
 
     fun choose(s: MapStyle) {
         style = s
@@ -61,7 +61,8 @@ object MapTiles {
         if (map.tileProvider.tileSource.name() != src.name()) map.setTileSource(src)
         map.overlayManager.tilesOverlay.setColorFilter(null)
         map.isTilesScaledToDpi = true
-        map.setTilesScaleFactor(1.2f)           // أسماء وشوارع أكبر وأوضح
+        map.setTilesScaleFactor(if (style == MapStyle.satellite) 1.0f else 1.2f)   // القمر الصناعي بدقته الأصلية بلا تكبير
+        map.maxZoomLevel = 19.0
         map.setScrollableAreaLimitDouble(oman)
     }
 }

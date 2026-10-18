@@ -194,6 +194,7 @@ fun PlacePicker(
                         },
                         update = { MapTiles.apply(it, dark) },
                     )
+                    MapStyleSwitch(Modifier.align(Alignment.BottomEnd).padding(10.dp))
                     var pinH by remember { mutableIntStateOf(0) }
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Box(Modifier.onSizeChanged { pinH = it.height }.offset { IntOffset(0, -pinH / 2) }) {
