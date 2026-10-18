@@ -31,6 +31,7 @@ jobs:
         with:
           name: jaynak-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 1
       - name: Show signing SHA-1
         if: always()
         run: |
