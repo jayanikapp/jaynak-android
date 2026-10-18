@@ -117,6 +117,7 @@ private fun RootView(store: AppStore) {
             store.blockedReason = ""
             while (true) {
                 store.pollBlockedReason()
+                runCatching { store.syncProfile() }   // إعادة محاولة تسجيل الحساب عند السيرفر إن فشلت
                 store.refreshNearbyDrivers(store.currentDriver?.coord)
                 delay(20_000)
             }

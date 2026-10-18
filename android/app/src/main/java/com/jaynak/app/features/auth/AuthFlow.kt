@@ -537,7 +537,10 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
         if (verifying) return
         verifying = true
         scope.launch {
+            OTPService.signUpContext = if (mode == AuthMode.signUp && role != UserRole.admin)
+                Triple(role.name, "signUp", store.pendingSignUpName) else null
             val outcome = store.verifyCode(code)
+            OTPService.signUpContext = null
             if (outcome == AppStore.VerifyOutcome.needsRole) {
                 store.restoreAccountFromServer(role)
                 if (store.completeSignIn(role, mode, store.pendingSignUpName)) {

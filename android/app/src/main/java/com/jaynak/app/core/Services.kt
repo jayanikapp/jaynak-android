@@ -57,6 +57,9 @@ internal fun JSONObject.str(key: String): String? =
 // ───────── OTPService.swift ─────────
 
 object OTPService {
+    /** يُضبط قبل التحقق عند «إنشاء حساب» ليُنشئ السيرفر الحساب لحظة التحقق. */
+    @Volatile var signUpContext: Triple<String, String, String>? = null   // الدور، الوضع، الاسم
+
 
     data class Challenge(
         val phone: String,
@@ -140,10 +143,9 @@ object OTPService {
         }
 
         val base = AppConfig.apiBaseURL ?: throw Failure.Unreachable("لا يوجد سيرفر مضبوط")
-        val json = post(
-            "auth/verify-otp", base,
-            JSONObject().put("phone", challenge.phone).put("code", code.digitsOnly),
-        )
+        val body = JSONObject().put("phone", challenge.phone).put("code", code.digitsOnly)
+        signUpContext?.let { (role, mode, name) -> body.put("role", role).put("mode", mode).put("name", name) }
+        val json = post("auth/verify-otp", base, body)
         json.str("token")?.let { AppConfig.sessionToken = it }
         return true
     }
