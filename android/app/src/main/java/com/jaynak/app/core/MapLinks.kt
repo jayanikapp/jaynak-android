@@ -69,6 +69,18 @@ object MapLinks {
     suspend fun resolve(text: String): Coord? = withContext(Dispatchers.IO) {
         parse(text)?.let { return@withContext it }
         val url = Regex("""https?://\S+""").find(text)?.value ?: return@withContext null
+        // الأوثق: السيرفر يحلّ الرابط
+        AppConfig.apiBaseURL?.let { base ->
+            runCatching {
+                val u = base.trimEnd('/') + "/api/resolve-map-link?url=" + java.net.URLEncoder.encode(url, "UTF-8")
+                Net.client.newCall(Request.Builder().url(u).get().build()).execute().use { r ->
+                    if (r.isSuccessful) {
+                        val j = org.json.JSONObject(r.body?.string() ?: "")
+                        if (j.has("lat")) return@withContext Coord(j.getDouble("lat"), j.getDouble("lon"))
+                    }
+                }
+            }
+        }
         var lastFinal: String? = null
         for (ua in agents) {
             val found = runCatching {

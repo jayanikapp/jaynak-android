@@ -78,6 +78,19 @@ fun PlacePicker(
     val clipboard = LocalClipboardManager.current
 
     var query by remember { mutableStateOf("") }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        var last = ""
+        val ob = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val t = clipboard.getText()?.text?.trim().orEmpty()
+                if (t.isNotEmpty() && t != last && com.jaynak.app.core.MapLinks.looksLikeLink(t)) { last = t; query = t }
+            }
+        }
+        lifecycle.addObserver(ob)
+        onDispose { lifecycle.removeObserver(ob) }
+    }
     var results by remember { mutableStateOf<List<Place>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
     var showList by remember { mutableStateOf(false) }
@@ -205,7 +218,15 @@ fun PlacePicker(
                                 Box(Modifier.clickableNoRipple { query = ""; results = emptyList(); showList = false }) {
                                     SFIcon("xmark", size = 13.dp, tint = MB.ink3)
                                 }
-                            else Text("لصق", style = MBType.callout, color = tint,
+                            else Text("قوقل ماب", style = MBType.callout, color = tint,
+                                modifier = Modifier.clickableNoRipple {
+                                    runCatching {
+                                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse("https://www.google.com/maps"))
+                                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    }
+                                })
+                            if (!searching && query.isEmpty()) Text("  لصق", style = MBType.callout, color = tint,
                                 modifier = Modifier.clickableNoRipple {
                                     clipboard.getText()?.text?.takeIf { it.isNotBlank() }?.let { query = it.trim() }
                                 })
