@@ -80,7 +80,7 @@ fun PlacePicker(
     var query by remember { mutableStateOf("") }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle) {
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
         var last = ""
         val ob = androidx.lifecycle.LifecycleEventObserver { _, e ->
             if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
