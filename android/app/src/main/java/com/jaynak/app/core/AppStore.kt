@@ -1706,6 +1706,18 @@ class AppStore {
 
     data class NearbyCar(val id: String, val coord: com.jaynak.app.core.Coord, val heading: Float?, val icon: Int)
 
+    /** رسالة تظهر بعد إنهاء الجلسة لأن الحساب سُجّل في هاتف آخر. */
+    var sessionNotice by mutableStateOf<String?>(null)
+
+    /** جلسة واحدة لكل حساب: إن دخل الحساب هاتف آخر نخرج من هذا الهاتف ونخبر المستخدم. */
+    suspend fun checkSessionAlive() {
+        if (session == null || session?.role == UserRole.admin) return
+        if (OrdersService.sessionStatus() == "replaced") {
+            signOut()
+            sessionNotice = "تم تسجيل الحساب في هاتف آخر، لذلك تم تسجيل خروجك من هذا الهاتف."
+        }
+    }
+
     suspend fun pollBlockedReason() {
         if (!OrdersService.isAvailable || session == null) return
         val me = runCatching { OrdersService.send("api/me", "GET", null) }.getOrNull() ?: return

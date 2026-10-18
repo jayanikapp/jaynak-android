@@ -401,6 +401,20 @@ object OrdersService {
     val isAvailable: Boolean
         get() = AppConfig.apiBaseURL != null && AppConfig.sessionToken != null
 
+    /** حالة الجلسة عند السيرفر: "ok" | "replaced" (دخل الحساب هاتف آخر) | "expired" | null (لا اتصال). */
+    suspend fun sessionStatus(): String? {
+        val base = AppConfig.apiBaseURL ?: return null
+        val token = AppConfig.sessionToken ?: return null
+        val req = Request.Builder().url(Net.url(base, "auth/session"))
+            .header("Authorization", "Bearer $token").get().build()
+        val res = try { Net.exec(req) } catch (e: IOException) { return null }
+        return when {
+            res.status in 200..299 -> "ok"
+            res.status == 401 -> if (res.json.str("error") == "session_replaced") "replaced" else "expired"
+            else -> null
+        }
+    }
+
     internal suspend fun send(path: String, method: String, body: JSONObject?): JSONObject {
         val base = AppConfig.apiBaseURL ?: throw Failure.NoServer
         val token = AppConfig.sessionToken ?: throw Failure.Unauthorized

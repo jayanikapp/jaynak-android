@@ -116,11 +116,24 @@ private fun RootView(store: AppStore) {
         LaunchedEffect(store.session?.phone) {
             store.blockedReason = ""
             while (true) {
+                runCatching { store.checkSessionAlive() }
                 store.pollBlockedReason()
                 runCatching { store.syncProfile() }   // إعادة محاولة تسجيل الحساب عند السيرفر إن فشلت
                 store.refreshNearbyDrivers(store.currentDriver?.coord)
                 delay(20_000)
             }
+        }
+        store.sessionNotice?.let { msg ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { store.sessionNotice = null },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { store.sessionNotice = null }) {
+                        androidx.compose.material3.Text("حسنًا")
+                    }
+                },
+                title = { androidx.compose.material3.Text("تم تسجيل الخروج") },
+                text = { androidx.compose.material3.Text(msg) },
+            )
         }
         if (store.blockedReason.isNotEmpty()) {
             Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.82f))
