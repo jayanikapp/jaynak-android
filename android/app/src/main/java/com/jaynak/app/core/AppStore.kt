@@ -842,10 +842,12 @@ class AppStore {
                 save()
                 toast = Toast(text = e.message ?: "رفض السيرفر الطلب", kind = Toast.Kind.error)
             } catch (e: Exception) {
-                toast = Toast(
-                    text = "الطلب أُنشئ محلياً، لكن لم يصل للسيرفر — " + (e.message ?: ""),
-                    kind = Toast.Kind.error,
-                )
+                // لا نُبقي الطلب محلياً (كان يُحاكى وينتهي فوراً) — نوضّح السبب ليعيد المحاولة
+                orders = orders.filterNot { it.id == id }
+                save()
+                val why = if (e === OrdersService.Failure.Unauthorized)
+                    "انتهت جلستك — سجّل الدخول من جديد" else (e.message ?: "تحقق من الاتصال")
+                toast = Toast(text = "تعذّر إرسال الطلب — $why", kind = Toast.Kind.error)
             }
         }
     }
