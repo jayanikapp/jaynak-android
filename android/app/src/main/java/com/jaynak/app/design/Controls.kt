@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** مقابل .buttonStyle(.glass) — كبسولة زجاجية بنص ملوّن. */
 @Composable
@@ -103,6 +104,22 @@ fun GlassIconButton(
         else base.glassShape(CircleShape, 18.dp, null, 0.10f),
         contentAlignment = Alignment.Center,
     ) { SFIcon(symbol, size = iconSize, tint = if (prominent) Color.White else tint) }
+}
+
+/** زر «الاتصال بنا»: سماعة + نص داخل كبسولة زجاجية حمراء. */
+@Composable
+fun SupportPill(onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = MB.red) {
+    androidx.compose.foundation.layout.Row(
+        modifier.height(42.dp).pressable(onClick = onClick)
+            .glassShape(androidx.compose.foundation.shape.RoundedCornerShape(50), 18.dp, null, 0.10f)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+    ) {
+        SFIcon("headphones", size = 17.dp, tint = tint)
+        androidx.compose.material3.Text("الاتصال بنا", color = tint, fontSize = 14.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+    }
 }
 
 /** حقل نص متعدد الأسطر داخل سطح زجاجي — مقابل TextField(axis: .vertical). */

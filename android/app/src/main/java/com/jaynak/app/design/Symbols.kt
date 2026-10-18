@@ -94,6 +94,7 @@ fun sfVector(name: String): ImageVector = when (name) {
     "info", "info.circle", "info.circle.fill" -> Icons.Filled.Info
     "largecircle.fill.circle" -> Icons.Filled.RadioButtonChecked
     "lifepreserver.fill" -> Icons.Filled.SupportAgent
+    "headphones" -> Icons.Filled.Headset
     "lightbulb.fill" -> Icons.Filled.Lightbulb
     "list.bullet.rectangle", "list.bullet.rectangle.fill",
     "list.bullet.rectangle.portrait.fill" -> Icons.AutoMirrored.Filled.ViewList

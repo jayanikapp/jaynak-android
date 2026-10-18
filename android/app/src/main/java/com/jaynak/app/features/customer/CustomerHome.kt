@@ -165,7 +165,7 @@ private fun HomeHeader(onSupport: () -> Unit, modifier: Modifier = Modifier) {
                 store.requestLogin(reason = "سجّل الدخول لتتابع طلباتك ومحفظتك")
             })
         } else {
-            GlassIconButton("bubble.left.and.text.bubble.right.fill", onSupport, size = 42.dp)
+            com.jaynak.app.design.SupportPill(onSupport)
         }
     }
 }
