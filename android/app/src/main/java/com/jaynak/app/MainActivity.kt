@@ -115,6 +115,7 @@ private fun RootView(store: AppStore) {
         val scope = rememberCoroutineScope()
         LaunchedEffect(store.session?.phone) {
             store.blockedReason = ""
+            store.resetPresenceOnLaunch()
             while (true) {
                 runCatching { store.checkSessionAlive() }
                 store.pollBlockedReason()

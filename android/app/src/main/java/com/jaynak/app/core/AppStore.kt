@@ -1495,6 +1495,22 @@ class AppStore {
             return orders.firstOrNull { it.driverID == did && it.status.isLive }
         }
 
+    private var presenceResetDone = false
+
+    /** إغلاق التطبيق من قائمة التطبيقات = غير متصل؛ المندوب هو من يضغط «متصل» من جديد. */
+    fun resetPresenceOnLaunch() {
+        if (presenceResetDone) return
+        val did = session?.driverID ?: return
+        val i = drivers.indexOfFirst { it.id == did }
+        if (i < 0) return
+        presenceResetDone = true
+        if (drivers[i].presence != DriverPresence.online) return
+        drivers = drivers.mapAt(i) { it.copy(presence = DriverPresence.offline) }
+        com.jaynak.app.driver.DriverLocationService.ensure(Boot.app, false)
+        if (OrdersService.isAvailable) scope.launch { runCatching { OrdersService.setPresence(false) } }
+        save()
+    }
+
     fun setPresence(p: DriverPresence) {
         val did = session?.driverID ?: return
         val i = drivers.indexOfFirst { it.id == did }
