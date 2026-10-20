@@ -84,11 +84,11 @@ const val otpLength = 6
         v = if (sep >= 0) {
             v.substring(0, sep).lowercase() + "://" + v.substring(sep + 3)
         } else {
-            "http://$v"
+            "https://$v"
         }
         val uri = runCatching { java.net.URI(v) }.getOrNull() ?: return null
         val scheme = uri.scheme ?: return null
-        if (scheme != "http" && scheme != "https") return null
+        if (scheme != "https") return null
         val host = uri.host ?: return null
         if (host.isEmpty()) return null
         if (!host.contains(".") && host != "localhost") return null

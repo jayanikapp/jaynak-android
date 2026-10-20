@@ -22,7 +22,8 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
+        android:allowBackup="false"
         android:theme="@style/Theme.Jaynak">
 
         <activity
