@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.jaynak.app.core.AppConfig
 import com.jaynak.app.core.DriverPresence
 import com.jaynak.app.core.Order
+import com.jaynak.app.core.Place
 import com.jaynak.app.core.OrderStatus
 import com.jaynak.app.core.DispatchMode
 import com.jaynak.app.core.PaymentMethod
