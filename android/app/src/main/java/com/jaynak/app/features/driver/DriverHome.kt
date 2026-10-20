@@ -367,6 +367,12 @@ fun ActiveTripCard(order: Order) {
                 }
             }
 
+            GlassButton("واتساب للزبون", {
+                val ph = customer?.phone ?: order.customerPhone ?: order.recipientPhone
+                if (ph.filter { c -> c.isDigit() }.length >= 8) NavigationLauncher.whatsapp(context, ph)
+                else store.toast = com.jaynak.app.core.AppStore.Toast(text = "رقم الزبون غير متوفر", kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+            }, Modifier.fillMaxWidth(), tint = MB.green, symbol = "message.fill", vertical = 11.dp)
+
             PrimaryCTA(actionTitle, onClick = { showConfirm = true }, symbol = "checkmark.circle.fill")
             if (order.status == com.jaynak.app.core.OrderStatus.pickingUp ||
                 order.status == com.jaynak.app.core.OrderStatus.assigned) {
