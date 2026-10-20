@@ -150,12 +150,14 @@ fun Screen(
 fun JSheet(
     onDismiss: () -> Unit,
     fullHeight: Boolean = true,
+    gestures: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = fullHeight)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
+        sheetGesturesEnabled = gestures,
         containerColor = MB.sunken,
         contentColor = MB.ink,
         dragHandle = null,

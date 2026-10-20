@@ -351,6 +351,7 @@ object Notifications {
 
     private const val CH_OFFERS = "jaynak.offers"
     private const val CH_ADMIN = "jaynak.admin.v1"
+    private const val CH_STATUS = "jaynak.order.status.v1"
 
     /** يضبطه MainActivity ليطلب إذن الإشعارات (أندرويد ١٣+) عند الحاجة. */
     var requestPermission: (() -> Unit)? = null
@@ -389,6 +390,51 @@ object Notifications {
                 )
             }
         nm.createNotificationChannel(adm)
+        val st = NotificationChannel(CH_STATUS, "حالة طلبك", NotificationManager.IMPORTANCE_HIGH)
+            .apply {
+                description = "قبول الطلب، الاستلام، بدء التوصيل والتسليم"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 120, 80, 120)
+            }
+        nm.createNotificationChannel(st)
+    }
+
+    /** إشعار الزبون بتقدّم طلبه: قبول ← استلام ← بدء التوصيل ← تسليم. */
+    @SuppressLint("MissingPermission")
+    fun orderUpdate(ref: String, status: OrderStatus, driverName: String?, dropoff: String) {
+        if (!authorized) return
+        ensureChannel()
+        val who = if (!driverName.isNullOrBlank()) "المندوب $driverName" else "المندوب"
+        val (title, body) = when (status) {
+            OrderStatus.assigned, OrderStatus.pickingUp ->
+                "تم قبول طلبك ✅" to "$who قبل طلبك وهو في الطريق لاستلامه."
+            OrderStatus.pickedUp ->
+                "تم استلام طلبك 📦" to "$who استلم طلبك وسيبدأ التوصيل خلال لحظات."
+            OrderStatus.delivering ->
+                "طلبك في الطريق إليك 🚗" to "بدأ $who التوصيل إلى $dropoff. تابعه مباشرة على الخريطة."
+            OrderStatus.delivered ->
+                "تم تسليم طلبك 🎉" to "وصل طلبك بنجاح. شكرًا لاختيارك جاينك — قيّم تجربتك مع المندوب."
+            else -> return
+        }
+        val open = PendingIntent.getActivity(
+            Boot.app, 0, Intent(Boot.app, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(Boot.app, CH_STATUS)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setSubText("طلب $ref")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setSmallIcon(android.R.drawable.ic_dialog_map)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setGroup("order-$ref")
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(Boot.app).notify("order-status-$ref-${status.name}".hashCode(), n)
+        }
     }
 
     /** يطلب الإذن إن لزم ويعيد هل الإشعارات مفعّلة الآن. */

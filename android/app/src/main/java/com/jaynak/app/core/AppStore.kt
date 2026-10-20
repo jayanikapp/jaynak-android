@@ -1145,6 +1145,11 @@ class AppStore {
                         )
                     }
                     changed = true
+                    if (newStatus != cur.status && (newStatus.isLive || newStatus == OrderStatus.delivered) &&
+                        nowMs() - cur.createdAt < 6 * 3600_000L) {
+                        Notifications.orderUpdate(cur.ref, newStatus,
+                            drivers.firstOrNull { d -> d.id == newDriver }?.name, cur.dropoff.name)
+                    }
                 }
             }
             if (changed) save()

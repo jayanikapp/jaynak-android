@@ -162,7 +162,7 @@ fun PlacePicker(
     }
     LaunchedEffect(mapRef) { if (mapRef != null) settle() }
 
-    JSheet(onDismiss = onDismiss) {
+    JSheet(onDismiss = onDismiss, gestures = false) {   // سحب الشاشة بإصبع واحد يخص الخريطة فقط
         Box(Modifier.fillMaxSize()) {
             BrandBackground(intensity = 0.5f)
             Column(Modifier.fillMaxSize()) {
@@ -189,6 +189,11 @@ fun PlacePicker(
                             MapView(context).apply {
                                 MapTiles.apply(this, dark)
                                 setMultiTouchControls(true)
+                                setOnTouchListener { v, e ->
+                                    if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN || e.actionMasked == android.view.MotionEvent.ACTION_MOVE)
+                                        v.parent?.requestDisallowInterceptTouchEvent(true)
+                                    false
+                                }
                                 isHorizontalMapRepetitionEnabled = false
                                 isVerticalMapRepetitionEnabled = false
                                 zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
