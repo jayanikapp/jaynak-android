@@ -34,8 +34,9 @@ jobs:
         with:
           name: jaynak-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 1
+          retention-days: 7
       - name: Publish APK as release (stable download link)
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
