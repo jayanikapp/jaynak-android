@@ -295,7 +295,7 @@ private fun NewAccountSheet(role: String, onDone: suspend () -> Unit, onDismiss:
     var vPlate by remember { mutableStateOf("") }
     var approve by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
-    val zones = listOf("مسقط", "مطرح", "بوشر", "السيب", "العامرات", "قريات")
+    val zones = com.jaynak.app.core.Oman.governorates.flatMap { it.wilayat }
     val digits = phone.filter { it.isDigit() }.takeLast(8)
 
     PanelSheet(if (isDriver) "إضافة مندوب" else "إضافة زبون", onDismiss) {
