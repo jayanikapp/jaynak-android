@@ -297,7 +297,27 @@ data class PriceBreakdown(
     val voucherTitle: String? = null,
 
     val pointsEarned: Int = 0,
-)
+) {
+    /** فرق الحد الأدنى للأجرة: يجعل بنود الفاتورة تساوي الإجمالي حين يرفع السيرفر السعر للحد الأدنى. */
+    val minFareTopUp: Double
+        get() {
+            val d = total + discount - (base + distance + time + zoneSurcharge + kindAdjustment + surge)
+            return if (d > 0.0005) d else 0.0
+        }
+
+    /** «17.0 كم» أو «17.0 كم · 0.850 ر.ع.» — لا نعرض مبلغاً صفرياً بلا معنى. */
+    fun kmText(amount: Double): String {
+        val k = "%.1f".format(java.util.Locale.US, km) + " كم"
+        return if (amount > 0.0005) k + " · " + amount.money else k
+    }
+
+    fun minutesText(amount: Double): String {
+        val m = "$minutes د"
+        return if (amount > 0.0005) m + " · " + amount.money else m
+    }
+
+    fun signed(v: Double): String = (if (v < 0) "−" else "+") + kotlin.math.abs(v).money
+}
 
 @Serializable
 data class Order(

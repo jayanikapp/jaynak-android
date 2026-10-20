@@ -377,10 +377,14 @@ fun NewOrderView(
                             AnimatedVisibility(showBreakdown, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                     KeyValueRow("الأساس", quote.base.money)
-                                    KeyValueRow("المسافة (${"%.1f".format(Locale.US, quote.km)} كم)", quote.distance.money)
-                                    KeyValueRow("الوقت (${quote.minutes} د)", quote.time.money)
+                                    KeyValueRow("المسافة", quote.kmText(quote.distance), isNumber = false)
+                                    KeyValueRow("الوقت", quote.minutesText(quote.time), isNumber = false)
                                     if (quote.zoneSurcharge > 0) KeyValueRow("رسم المنطقة", quote.zoneSurcharge.money)
-                                    if (quote.kindAdjustment != 0.0) KeyValueRow("نوع الطلب (${kind.title})", quote.kindAdjustment.money)
+                                    if (quote.kindAdjustment != 0.0) KeyValueRow(
+                                        "نوع الطلب (${kind.title}) · " + if (quote.kindAdjustment < 0) "خصم" else "زيادة",
+                                        quote.signed(quote.kindAdjustment),
+                                        valueColor = if (quote.kindAdjustment < 0) MB.green else MB.red, isNumber = false)
+                                    if (quote.minFareTopUp > 0) KeyValueRow("الحد الأدنى للأجرة", "+" + quote.minFareTopUp.money, isNumber = false)
                                     if (quote.surge > 0) KeyValueRow("وقت الذروة", quote.surge.money, valueColor = MB.red)
                                     if (quote.discount > 0) KeyValueRow(
                                         "خصم ${quote.voucherTitle ?: quote.promoCode ?: ""}",

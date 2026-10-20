@@ -240,10 +240,13 @@ fun OrderDetailSheet(order: Order, role: UserRole, onDismiss: () -> Unit) {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             SectionHeader("الفاتورة", symbol = "doc.text.fill")
                             KeyValueRow("الأساس", p.base.money)
-                            KeyValueRow("المسافة (${"%.1f".format(java.util.Locale.US, p.km)} كم)", p.distance.money)
-                            KeyValueRow("الوقت (${p.minutes} د)", p.time.money)
+                            KeyValueRow("المسافة", p.kmText(p.distance), isNumber = false)
+                            KeyValueRow("الوقت", p.minutesText(p.time), isNumber = false)
                             if (p.zoneSurcharge > 0) KeyValueRow("رسم المنطقة", p.zoneSurcharge.money)
-                            if (p.kindAdjustment != 0.0) KeyValueRow("نوع الطلب", p.kindAdjustment.money)
+                            if (p.kindAdjustment != 0.0) KeyValueRow(
+                                if (p.kindAdjustment < 0) "نوع الطلب (خصم)" else "نوع الطلب (زيادة)", p.signed(p.kindAdjustment),
+                                valueColor = if (p.kindAdjustment < 0) MB.green else MB.red, isNumber = false)
+                            if (p.minFareTopUp > 0) KeyValueRow("الحد الأدنى للأجرة", "+" + p.minFareTopUp.money, isNumber = false)
                             if (p.surge > 0) KeyValueRow("ذروة", p.surge.money, valueColor = MB.red)
                             if (p.discount > 0)
                                 KeyValueRow("خصم ${p.promoCode ?: ""}", "−" + p.discount.money, valueColor = MB.green)
