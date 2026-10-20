@@ -350,7 +350,11 @@ fun ActiveTripCard(order: Order) {
                     SFIcon("location.north.line.fill", size = 14.dp, tint = MB.green)
                     Text(if (toDropoff) "ملاحة للتسليم" else "ملاحة للاستلام", style = MBType.callout, color = MB.green)
                 }
-                GlassIconButton("phone.fill", { customer?.let { NavigationLauncher.call(context, it.phone) } },
+                GlassIconButton("phone.fill", {
+                    val ph = customer?.phone ?: order.customerPhone ?: order.recipientPhone
+                    if (ph.filter { c -> c.isDigit() }.length >= 8) NavigationLauncher.call(context, ph)
+                    else store.toast = com.jaynak.app.core.AppStore.Toast(text = "رقم الزبون غير متوفر", kind = com.jaynak.app.core.AppStore.Toast.Kind.error)
+                },
                     size = 46.dp, iconSize = 15.dp, tint = MB.ink)
                 Box {
                     GlassIconButton("message.fill", { showChat = true }, size = 46.dp, iconSize = 15.dp, tint = MB.ink)

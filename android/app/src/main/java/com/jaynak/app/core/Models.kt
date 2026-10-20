@@ -317,6 +317,8 @@ data class Order(
     val note: String = "",
     val recipientName: String = "",
     val recipientPhone: String = "",
+    /** رقم الزبون كما يصل من السيرفر للمندوب (للاتصال) — الزبون غير موجود محلياً عنده. */
+    val customerPhone: String? = null,
     val payment: PaymentMethod,
     val price: PriceBreakdown,
     val status: OrderStatus = OrderStatus.searching,

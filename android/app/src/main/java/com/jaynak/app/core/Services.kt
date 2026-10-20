@@ -249,6 +249,7 @@ object OrdersService {
         val offeredAt: Double = 0.0,
         val driverID: String? = null,
         val customerPhone: String = "",
+        val recipientPhone: String = "",
 
         /** تأتي في تغذية المندوب فقط */
         val km: Double? = null,

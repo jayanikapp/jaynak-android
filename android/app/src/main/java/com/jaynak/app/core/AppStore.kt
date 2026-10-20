@@ -1171,6 +1171,8 @@ class AppStore {
                 val keepLocal = (it.status.isLive && status.isLive && it.driverID == did && rank(it.status) > rank(status)) ||
                     (it.status == OrderStatus.delivered && status != OrderStatus.cancelled)
                 it.copy(
+                    customerPhone = remote.customerPhone.ifEmpty { it.customerPhone },
+                    recipientPhone = remote.recipientPhone.ifEmpty { it.recipientPhone },
                     status = if (keepLocal) it.status else status,
                     driverID = if (remote.driverID != null && status.isLive) did
                         else if (remote.driverID == null && status == OrderStatus.searching && it.driverID == did) null
@@ -1205,6 +1207,8 @@ class AppStore {
             payment = runCatching { PaymentMethod.valueOf(remote.payment) }.getOrDefault(PaymentMethod.cash),
             price = price,
             remoteID = remote.id,
+            customerPhone = remote.customerPhone.ifEmpty { null },
+            recipientPhone = remote.recipientPhone,
             dispatchMode = if (remote.dispatchMode == "open") DispatchMode.open else DispatchMode.nearby,
             status = status,
             offeredTo = listOf(did),
