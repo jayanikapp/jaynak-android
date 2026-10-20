@@ -153,11 +153,26 @@ fun JSheet(
     gestures: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (!gestures) {
+        // نافذة كاملة بلا سحب: السحب بإصبع واحد يخص الخريطة فقط (لا تتنازع معه الورقة السفلية).
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            Column(
+                Modifier.fillMaxSize().background(MB.sunken)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.ime),
+                content = content,
+            )
+        }
+        return
+    }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = fullHeight)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
-        sheetGesturesEnabled = gestures,
         containerColor = MB.sunken,
         contentColor = MB.ink,
         dragHandle = null,
