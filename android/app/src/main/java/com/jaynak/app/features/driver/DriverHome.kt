@@ -317,6 +317,8 @@ fun ActiveTripCard(order: Order) {
                         if (order.pickup.details.isNotEmpty()) Text(order.pickup.details, style = MBType.micro, color = MB.ink3)
                     }
                 }
+                if (!order.pickup.link.isNullOrBlank())
+                    ExactLocationButton("موقع الاستلام الدقيق (جوجل ماب)", order.pickup)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
                     SFIcon("flag.checkered", size = 18.dp, tint = MB.red)
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -326,6 +328,8 @@ fun ActiveTripCard(order: Order) {
                                 style = MBType.micro, color = MB.ink3)
                     }
                 }
+                if (!order.dropoff.link.isNullOrBlank())
+                    ExactLocationButton("موقع التسليم الدقيق (جوجل ماب)", order.dropoff)
                 val customerName = customer?.name ?: extras?.customerName ?: ""
                 if (customerName.isNotEmpty()) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -460,3 +464,20 @@ private fun driverMapNearby(store: com.jaynak.app.core.AppStore, me: com.jaynak.
     store.nearbyDrivers.ifEmpty {
         store.drivers.filter { it.id != me && it.presence == DriverPresence.online }.map { it.coord }
     }
+
+
+/** زر «ملاحة للموقع الدقيق»: يفتح رابط الزبون الأصلي مباشرة في جوجل ماب. */
+@Composable
+fun ExactLocationButton(title: String, place: Place) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Row(
+        Modifier.fillMaxWidth().glassSurface(23.dp, null, 0.08f)
+            .pressable { NavigationLauncher.open(ctx, place.coord, place.name, place.link) }
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MBType.callout, color = MB.green)
+        SFIcon("location.north.line.fill", size = 14.dp, tint = MB.green)
+    }
+}
