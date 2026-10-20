@@ -57,6 +57,11 @@ object MapTiles {
     private val oman = BoundingBox(27.2, 60.9, 16.0, 51.6)
 
     fun apply(map: MapView, dark: Boolean) {
+        // idempotent: update{} runs on every recomposition; re-applying tile scale / limits each time
+        // flushes the tile cache and makes panning stutter.
+        val key = style.name
+        if (map.tag == key) return
+        map.tag = key
         val src = source(style)
         if (map.tileProvider.tileSource.name() != src.name()) map.setTileSource(src)
         map.overlayManager.tilesOverlay.setColorFilter(null)

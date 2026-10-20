@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -103,7 +104,8 @@ fun PlacePicker(
     var named by remember { mutableStateOf(false) }
     var resolving by remember { mutableStateOf(false) }
     var mapRef by remember { mutableStateOf<MapView?>(null) }
-    var tick by remember { mutableIntStateOf(0) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val settleJob = remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
     val ignoreUntil = remember { longArrayOf(0L) }
 
     fun flyTo(c: Coord, zoom: Double) {
@@ -141,19 +143,24 @@ fun PlacePicker(
         searching = false
     }
 
-    LaunchedEffect(tick, mapRef) {
-        val m = mapRef ?: return@LaunchedEffect
-        kotlinx.coroutines.delay(500)
-        val c = m.mapCenter
-        val coord = Coord(c.latitude, c.longitude)
-        pinCoord = coord
-        com.jaynak.app.core.PlaceSearch.area(coord)?.let { pinZone = it }
-        if (!named) {
-            resolving = true
-            com.jaynak.app.core.PlaceSearch.reverse(coord)?.let { if (!named) pinName = it }
-            resolving = false
+    // لا نعيد التركيب مع كل حركة إصبع: نؤجل العمل الثقيل (اسم المكان) حتى تستقر الخريطة.
+    fun settle() {
+        val m = mapRef ?: return
+        settleJob[0]?.cancel()
+        settleJob[0] = scope.launch {
+            kotlinx.coroutines.delay(450)
+            val c = m.mapCenter
+            val coord = Coord(c.latitude, c.longitude)
+            pinCoord = coord
+            com.jaynak.app.core.PlaceSearch.area(coord)?.let { pinZone = it }
+            if (!named) {
+                resolving = true
+                com.jaynak.app.core.PlaceSearch.reverse(coord)?.let { if (!named) pinName = it }
+                resolving = false
+            }
         }
     }
+    LaunchedEffect(mapRef) { if (mapRef != null) settle() }
 
     JSheet(onDismiss = onDismiss) {
         Box(Modifier.fillMaxSize()) {
@@ -175,6 +182,10 @@ fun PlacePicker(
                         factory = { context ->
                             Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                             Configuration.getInstance().userAgentValue = "jaynak-android"
+                            Configuration.getInstance().cacheMapTileCount = 96
+                            Configuration.getInstance().tileDownloadThreads = 8
+                            Configuration.getInstance().tileFileSystemThreads = 6
+                            Configuration.getInstance().animationSpeedDefault = 250
                             MapView(context).apply {
                                 MapTiles.apply(this, dark)
                                 setMultiTouchControls(true)
@@ -187,9 +198,9 @@ fun PlacePicker(
                                 addMapListener(object : MapListener {
                                     override fun onScroll(event: ScrollEvent?): Boolean {
                                         if (System.currentTimeMillis() > ignoreUntil[0]) { named = false; showList = false }
-                                        tick++; return false
+                                        settle(); return false
                                     }
-                                    override fun onZoom(event: ZoomEvent?): Boolean { tick++; return false }
+                                    override fun onZoom(event: ZoomEvent?): Boolean { settle(); return false }
                                 })
                                 mapRef = this
                             }
