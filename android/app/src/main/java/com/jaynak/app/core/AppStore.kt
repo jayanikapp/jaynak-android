@@ -36,8 +36,12 @@ class AppStore {
     var transactions by mutableStateOf(listOf<WalletTxn>())
     var rules by mutableStateOf(PricingRules())
     /** تسعير أنواع الطلب كما تضبطه الإدارة (مضاعف + رسم ثابت). الافتراضي = قيم السيرفر. */
-    var kindMul by mutableStateOf(mapOf("errand" to 1.0, "parcel" to 1.10, "documents" to 0.95))
-    var kindExtra by mutableStateOf(mapOf<String, Double>())
+    /** المفتاح "open:errand" أو "express:parcel" … القيم: mul / extra / min / max. */
+    var kindCfg by mutableStateOf(
+        listOf("open", "express").flatMap { m ->
+            listOf("errand" to 1.0, "parcel" to 1.10, "documents" to 0.95).map { (k, mul) -> "$m:$k" to mapOf("mul" to mul) }
+        }.toMap()
+    )
     /** مفتاح الإدارة لنافذة التقييم. */
     var ratingsEnabled by mutableStateOf(true)
     /** قواعد النقاط وسجل الحركات من السيرفر (لا تُحفظ محلياً). */
@@ -567,7 +571,10 @@ class AppStore {
     ): PriceBreakdown = PricingEngine.quote(
         pickup, dropoff, kind, rules,
         promo = promo(promoText, session?.customerID), voucher = voucher, express = express,
-        kindMultiplier = kindMul[kind.name], kindExtra = kindExtra[kind.name] ?: 0.0,
+        kindMultiplier = kindCfg[(if (express) "express" else "open") + ":" + kind.name]?.get("mul"),
+        kindExtra = kindCfg[(if (express) "express" else "open") + ":" + kind.name]?.get("extra") ?: 0.0,
+        kindMin = kindCfg[(if (express) "express" else "open") + ":" + kind.name]?.get("min") ?: 0.0,
+        kindMax = kindCfg[(if (express) "express" else "open") + ":" + kind.name]?.get("max") ?: 0.0,
     )
 
     // ───────── محفظة الزبون من السيرفر ─────────
@@ -686,10 +693,11 @@ class AppStore {
         val raw = runCatching { OrdersService.fetchRulesRaw() }.getOrNull() ?: return
         val j = raw.optJSONObject("rules") ?: return
         if (raw.has("ratingsEnabled")) ratingsEnabled = raw.optBoolean("ratingsEnabled", true)
-        for (k in listOf("errand", "parcel", "documents")) {
-            val c = k.replaceFirstChar { it.uppercase() }
-            if (j.has("mul$c")) kindMul = kindMul + (k to j.optDouble("mul$c", kindMul[k] ?: 1.0))
-            if (j.has("extra$c")) kindExtra = kindExtra + (k to j.optDouble("extra$c", 0.0))
+        for (m in listOf("open", "express")) for (k in listOf("errand", "parcel", "documents")) {
+            val suf = m.replaceFirstChar { it.uppercase() } + k.replaceFirstChar { it.uppercase() }
+            var cfg = kindCfg["$m:$k"] ?: emptyMap()
+            for (f in listOf("mul", "extra", "min", "max")) if (j.has(f + suf)) cfg = cfg + (f to j.optDouble(f + suf, 0.0))
+            kindCfg = kindCfg + ("$m:$k" to cfg)
         }
         fun d(k: String, cur: Double) = if (j.has(k)) j.optDouble(k, cur) else cur
         fun n(k: String, cur: Int) = if (j.has(k)) j.optInt(k, cur) else cur

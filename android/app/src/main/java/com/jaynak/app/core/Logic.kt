@@ -77,6 +77,8 @@ object PricingEngine {
         express: Boolean = false,
         kindMultiplier: Double? = null,
         kindExtra: Double = 0.0,
+        kindMin: Double = 0.0,
+        kindMax: Double = 0.0,
     ): PriceBreakdown {
 
         val km = (pickup.coord.km(dropoff.coord) * 10).roundedAway() / 10
@@ -100,7 +102,9 @@ object PricingEngine {
         }
 
         var subtotal = preKind + kindAdjustment + surge
-        subtotal = max(subtotal, rules.minimumFare)
+        val floor = if (kindMin > 0) kindMin else rules.minimumFare
+        subtotal = max(subtotal, floor)
+        if (kindMax > 0) subtotal = max(minOf(subtotal, kindMax), minOf(floor, kindMax))
 
         var discount = 0.0
         var promoCode: String? = null
