@@ -79,6 +79,7 @@ private fun SignedIn() {
 
     val live = store.liveOrderForCurrentCustomer
     val pendingRating: Order? = run {
+        if (!store.ratingsEnabled) return@run null
         val cid = store.session?.customerID ?: return@run null
         store.orders.firstOrNull {
             it.customerID == cid && it.status == OrderStatus.delivered &&

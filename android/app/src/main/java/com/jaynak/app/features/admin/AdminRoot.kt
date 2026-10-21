@@ -59,7 +59,7 @@ fun AdminRoot() {
     val moreItems = buildList {
         val ord = store.can(AdminPermission.viewOrders) || store.can(AdminPermission.manageOrders)
         val usr = store.can(AdminPermission.manageDrivers) || store.can(AdminPermission.manageCustomers)
-        if (ord) { add(6 to "الخريطة المباشرة"); add(7 to "سجل الصور") }
+        if (ord) { add(6 to "الخريطة المباشرة"); add(7 to "سجل الصور"); add(11 to "التقييمات") }
         if (store.can(AdminPermission.manageDrivers)) add(9 to "السحوبات")
         if (usr) { add(5 to "طلبات الحذف") }
         if (store.can(AdminPermission.manageAdmins)) add(10 to "الرتب")
@@ -117,6 +117,7 @@ fun AdminRoot() {
                             9 -> AdminServerPayouts()
                             5 -> AdminServerDeletions()
                             10 -> AdminServerRanks()
+                            11 -> AdminRatings()
                             3 -> AdminServerSettings()
                             4 -> AdminSupport()
                         }

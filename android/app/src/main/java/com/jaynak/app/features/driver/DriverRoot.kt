@@ -68,6 +68,7 @@ fun DriverRoot() {
     val driver = store.currentDriver
     val offer = store.pendingOfferForCurrentDriver
     val pendingRating: Order? = run {
+        if (!store.ratingsEnabled) return@run null
         val did = store.session?.driverID ?: return@run null
         store.orders.firstOrNull {
             it.driverID == did && it.status == OrderStatus.delivered &&

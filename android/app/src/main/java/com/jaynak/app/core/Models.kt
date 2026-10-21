@@ -139,7 +139,7 @@ data class AdminUser(
 object AdminTabs {
     fun permissions(tab: String): Set<AdminPermission> = when (tab) {
         "over" -> setOf(AdminPermission.viewOverview)
-        "map", "trace", "proofs" -> setOf(AdminPermission.viewOrders)
+        "map", "trace", "proofs", "ratings" -> setOf(AdminPermission.viewOrders)
         "orders" -> setOf(AdminPermission.viewOrders, AdminPermission.manageOrders)
         "drivers" -> setOf(AdminPermission.manageDrivers)
         "cust" -> setOf(AdminPermission.manageCustomers, AdminPermission.viewFinance)

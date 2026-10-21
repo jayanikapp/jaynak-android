@@ -73,6 +73,7 @@ fun AdminServerSettings() {
 
 private val groups = listOf(
     "التسعيرة العادية (طلب مفتوح)" to listOf("baseFare" to "فتح العداد (ر.ع)", "perKm" to "سعر الكيلومتر", "perMinute" to "سعر الدقيقة", "minimumFare" to "الحد الأدنى للأجرة"),
+    "أسعار أنواع الطلب (مشاوير / طرد / مستندات)" to listOf("mulErrand" to "مشاوير: المضاعف (1.00 = بلا تغيير، 1.20 = +20٪)", "extraErrand" to "مشاوير: رسم ثابت إضافي (ر.ع)", "mulParcel" to "طرد: المضاعف", "extraParcel" to "طرد: رسم ثابت إضافي (ر.ع)", "mulDocuments" to "مستندات: المضاعف (0.95 = خصم 5٪)", "extraDocuments" to "مستندات: رسم ثابت إضافي (ر.ع)"),
     "التوصيل السريع (Express)" to listOf("expressBaseFare" to "فتح العداد", "expressPerKm" to "سعر الكيلومتر", "expressPerMinute" to "سعر الدقيقة", "expressCommissionPerRial" to "عمولة المنصة لكل ريال (0.10 = 10٪)"),
     "العمولات ورصيد المندوب" to listOf("fixedCommission" to "العمولة الثابتة للطلب المفتوح", "minCommission" to "الحد الأدنى للعمولة", "minEarningsBalance" to "أدنى رصيد يسمح للمندوب بالعمل", "earningsWarnBalance" to "رصيد التحذير"),
     "الحدود" to listOf("maxCustomerOrders" to "أقصى طلبات جارية للزبون", "maxDriverOpen" to "أقصى طلبات مفتوحة للمندوب", "maxDriverExpress" to "أقصى طلبات سريعة للمندوب"),
@@ -109,7 +110,7 @@ private fun PriceEditor(set: JSONObject, reload: suspend () -> Unit) {
     var pvHour by remember { mutableStateOf("12") }
     var pvKind by remember { mutableStateOf(0) }
     var pv by remember { mutableStateOf<JSONObject?>(null) }
-    val kinds = listOf("errand", "food", "parcel")
+    val kinds = listOf("errand", "parcel", "documents")
 
     suspend fun preview() {
         try {
@@ -186,7 +187,7 @@ private fun PriceEditor(set: JSONObject, reload: suspend () -> Unit) {
         Text("تحسب من القيم المحفوظة في السيرفر. احفظ ثم جرّب.", style = MBType.micro, color = MB.ink2)
         MBField("المسافة (كم)", pvKm, { pvKm = it }, keyboard = KeyboardType.Decimal, isRTLText = false)
         MBField("الساعة (0-23)", pvHour, { pvHour = it }, keyboard = KeyboardType.Number, isRTLText = false)
-        SegmentedPicker(listOf("مشوار", "طعام", "طرد"), pvKind, { pvKind = it })
+        SegmentedPicker(listOf("مشاوير", "طرد", "مستندات"), pvKind, { pvKind = it })
         PanelButton("احسب", filled = true) { scope.launch { preview() } }
         pv?.let { p ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -35,6 +35,11 @@ class AppStore {
     var orders by mutableStateOf(listOf<Order>())
     var transactions by mutableStateOf(listOf<WalletTxn>())
     var rules by mutableStateOf(PricingRules())
+    /** تسعير أنواع الطلب كما تضبطه الإدارة (مضاعف + رسم ثابت). الافتراضي = قيم السيرفر. */
+    var kindMul by mutableStateOf(mapOf("errand" to 1.0, "parcel" to 1.10, "documents" to 0.95))
+    var kindExtra by mutableStateOf(mapOf<String, Double>())
+    /** مفتاح الإدارة لنافذة التقييم. */
+    var ratingsEnabled by mutableStateOf(true)
     /** قواعد النقاط وسجل الحركات من السيرفر (لا تُحفظ محلياً). */
     var pointsRules by mutableStateOf(PointsRules())
     var pointsHistory by mutableStateOf<List<PointsEntry>>(emptyList())
@@ -562,6 +567,7 @@ class AppStore {
     ): PriceBreakdown = PricingEngine.quote(
         pickup, dropoff, kind, rules,
         promo = promo(promoText, session?.customerID), voucher = voucher, express = express,
+        kindMultiplier = kindMul[kind.name], kindExtra = kindExtra[kind.name] ?: 0.0,
     )
 
     // ───────── محفظة الزبون من السيرفر ─────────
@@ -677,7 +683,14 @@ class AppStore {
     suspend fun pullRules(force: Boolean = false) {
         if (!OrdersService.isAvailable) return
         if (!force && session?.role == UserRole.admin) return
-        val j = runCatching { OrdersService.fetchRules() }.getOrNull() ?: return
+        val raw = runCatching { OrdersService.fetchRulesRaw() }.getOrNull() ?: return
+        val j = raw.optJSONObject("rules") ?: return
+        if (raw.has("ratingsEnabled")) ratingsEnabled = raw.optBoolean("ratingsEnabled", true)
+        for (k in listOf("errand", "parcel", "documents")) {
+            val c = k.replaceFirstChar { it.uppercase() }
+            if (j.has("mul$c")) kindMul = kindMul + (k to j.optDouble("mul$c", kindMul[k] ?: 1.0))
+            if (j.has("extra$c")) kindExtra = kindExtra + (k to j.optDouble("extra$c", 0.0))
+        }
         fun d(k: String, cur: Double) = if (j.has(k)) j.optDouble(k, cur) else cur
         fun n(k: String, cur: Int) = if (j.has(k)) j.optInt(k, cur) else cur
         val r = rules
@@ -1307,6 +1320,10 @@ class AppStore {
         Feedback.success()
         toast = Toast(text = "شكراً على تقييمك", kind = Toast.Kind.success)
         save()
+        val remote = orders.getOrNull(i)?.remoteID
+        if (OrdersService.isAvailable && remote != null) {
+            scope.launch { runCatching { OrdersService.rate(remote, stars, comment) } }
+        }
     }
 
     // ───────── المحفظة ─────────

@@ -361,6 +361,15 @@ object OrdersService {
     suspend fun fetchRules(): JSONObject? =
         send("api/rules", "GET", null).optJSONObject("rules")
 
+    /** رد /api/rules كاملاً (القواعد + مفتاح التقييم). */
+    suspend fun fetchRulesRaw(): JSONObject = send("api/rules", "GET", null)
+
+    /** تقييم بعد التسليم (الزبون ← المندوب أو المندوب ← الزبون) مع ملاحظة اختيارية. */
+    suspend fun rate(orderID: String, stars: Int, note: String) {
+        send("api/orders/rate", "POST", JSONObject()
+            .put("orderID", orderID).put("stars", stars).put("note", note.take(300)))
+    }
+
     /** سحب أرباح المندوب: الرصيد وسجل الطلبات وأيام السحب. */
     suspend fun withdrawals(): JSONObject = send("api/driver/withdrawals", "GET", null)
 

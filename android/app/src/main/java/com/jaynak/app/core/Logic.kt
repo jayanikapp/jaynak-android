@@ -75,6 +75,8 @@ object PricingEngine {
         promo: PromoCode? = null,
         voucher: Voucher? = null,
         express: Boolean = false,
+        kindMultiplier: Double? = null,
+        kindExtra: Double = 0.0,
     ): PriceBreakdown {
 
         val km = (pickup.coord.km(dropoff.coord) * 10).roundedAway() / 10
@@ -89,7 +91,7 @@ object PricingEngine {
         val zoneSur = max(zoneSurcharge(pickup.zone), zoneSurcharge(dropoff.zone))
 
         val preKind = base + distance + time + zoneSur
-        val kindAdjustment = preKind * (kind.multiplier - 1)
+        val kindAdjustment = preKind * ((kindMultiplier ?: kind.multiplier) - 1) + kindExtra
 
         val hour = Calendar.getInstance().apply { timeInMillis = at }.get(Calendar.HOUR_OF_DAY)
         var surge = 0.0
