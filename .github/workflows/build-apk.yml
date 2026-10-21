@@ -41,7 +41,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest-apk -y --cleanup-tag || true
-          gh release create latest-apk --target ${{ github.sha }} android/app/build/outputs/apk/debug/*.apk --prerelease \
+          gh release create latest-apk --target ${{ github.sha }} app/build/outputs/apk/debug/*.apk --prerelease \
             --title "Jaynak APK — build ${{ github.run_number }}" \
             --notes "أحدث نسخة أندرويد (تُستبدل مع كل بناء)."
       - name: Show signing SHA-1
