@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import com.jaynak.app.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +61,7 @@ fun CustomerProfileView() {
         while (true) { store.syncProfileFromServer(); kotlinx.coroutines.delay(8000) }
     }
     var showDelete by remember { mutableStateOf(false) }
+    var showLang by remember { mutableStateOf(false) }
     var showSignOut by remember { mutableStateOf(false) }
     val c = store.currentCustomer
 
@@ -105,7 +106,7 @@ fun CustomerProfileView() {
                     SettingsRow("تعديل بياناتي", "pencil.line", detail = "طلب تعديل", action = { showEdit = true }),
                     SettingsRow("الأماكن المحفوظة", "star.fill", detail = "${c?.savedPlaces?.size ?: 0}"),
                     SettingsRow("الإشعارات", "bell.fill", detail = "مفعّلة"),
-                    SettingsRow("اللغة", "globe", detail = "العربية"),
+                    SettingsRow("اللغة", "globe", detail = com.jaynak.app.i18n.Lang.current.nativeName, action = { showLang = true }),
                 ))
             }
 
@@ -132,6 +133,7 @@ fun CustomerProfileView() {
         }
     }
 
+    if (showLang) com.jaynak.app.i18n.LanguageDialog { showLang = false }
     if (showEdit) com.jaynak.app.features.shared.ProfileEditSheet(com.jaynak.app.core.UserRole.customer) { showEdit = false }
     if (showAvatar && c != null) com.jaynak.app.features.shared.AvatarEditSheet("customer", c.name) { showAvatar = false }
     if (showLegal) LegalView(initialAudience = null, onDismiss = { showLegal = false })

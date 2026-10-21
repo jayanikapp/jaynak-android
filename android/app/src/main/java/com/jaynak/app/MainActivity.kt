@@ -59,11 +59,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.jaynak.app.core.Boot.activity = this
+        com.jaynak.app.i18n.Lang.init(this)
         enableEdgeToEdge()
         setContent {
             // اتجاه RTL إجباري كما في iOS
             CompositionLocalProvider(
-                LocalLayoutDirection provides LayoutDirection.Rtl,
+                LocalLayoutDirection provides com.jaynak.app.i18n.Lang.current.layoutDirection,
                 LocalStore provides store,
             ) {
                 JaynakTheme { RootView(store) }
@@ -129,11 +130,11 @@ private fun RootView(store: AppStore) {
                 onDismissRequest = { store.sessionNotice = null },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = { store.sessionNotice = null }) {
-                        androidx.compose.material3.Text("حسنًا")
+                        com.jaynak.app.i18n.Text("حسنًا")
                     }
                 },
-                title = { androidx.compose.material3.Text("تم تسجيل الخروج") },
-                text = { androidx.compose.material3.Text(msg) },
+                title = { com.jaynak.app.i18n.Text("تم تسجيل الخروج") },
+                text = { com.jaynak.app.i18n.Text(msg) },
             )
         }
         if (store.blockedReason.isNotEmpty()) {
@@ -142,18 +143,18 @@ private fun RootView(store: AppStore) {
                 contentAlignment = Alignment.Center) {
                 Column(Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
-                    androidx.compose.material3.Text("⚠️", fontSize = 44.sp)
-                    androidx.compose.material3.Text("الحساب متوقف", color = androidx.compose.ui.graphics.Color.White,
+                    com.jaynak.app.i18n.Text("⚠️", fontSize = 44.sp)
+                    com.jaynak.app.i18n.Text("الحساب متوقف", color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 22.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                    androidx.compose.material3.Text("راجع الإدارة بسبب انخفاض النقاط", color = androidx.compose.ui.graphics.Color.White,
+                    com.jaynak.app.i18n.Text("راجع الإدارة بسبب انخفاض النقاط", color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                    androidx.compose.material3.Text(store.blockedReason, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                    com.jaynak.app.i18n.Text(store.blockedReason, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
                         fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     androidx.compose.material3.TextButton(onClick = { scope.launch { store.pollBlockedReason() } }) {
-                        androidx.compose.material3.Text("تحديث")
+                        com.jaynak.app.i18n.Text("تحديث")
                     }
                     androidx.compose.material3.TextButton(onClick = { store.signOut() }) {
-                        androidx.compose.material3.Text("تسجيل الخروج", color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f))
+                        com.jaynak.app.i18n.Text("تسجيل الخروج", color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f))
                     }
                 }
             }

@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import com.jaynak.app.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +58,7 @@ fun DriverProfileView() {
     var showCar by remember { mutableStateOf(false) }
     var showAvatar by remember { mutableStateOf(false) }
     var showTone by remember { mutableStateOf(false) }
+    var showLang by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
     val d = store.currentDriver
 
@@ -115,6 +116,7 @@ fun DriverProfileView() {
                             detail = com.jaynak.app.features.shared.CarArt.names[com.jaynak.app.core.LiveTracking.myIcon.coerceIn(0, 4)],
                             action = { showCar = true }),
                         SettingsRow("نغمة الطلبات", "speaker.wave.2.fill", detail = com.jaynak.app.core.Feedback.offerToneTitle(), action = { showTone = true }),
+                        SettingsRow("اللغة", "globe", detail = com.jaynak.app.i18n.Lang.current.nativeName, action = { showLang = true }),
                         SettingsRow("الدعم الفني", "bubble.left.and.text.bubble.right.fill", badge = store.unread("support"), action = { showSupport = true }),
                         SettingsRow("الشروط وسياسة الخصوصية", "hand.raised.fill", action = { showLegal = true }),
                     ), tint = MB.red)
@@ -132,6 +134,7 @@ fun DriverProfileView() {
 
     if (showCar) VehicleIconSheet { showCar = false }
     if (showTone) OfferToneSheet { showTone = false }
+    if (showLang) com.jaynak.app.i18n.LanguageDialog { showLang = false }
     if (showEdit) com.jaynak.app.features.shared.ProfileEditSheet(UserRole.driver) { showEdit = false }
     if (showAvatar && d != null) com.jaynak.app.features.shared.AvatarEditSheet("driver", d.name) { showAvatar = false }
     if (showLegal) LegalView(initialAudience = UserRole.driver, onDismiss = { showLegal = false })
