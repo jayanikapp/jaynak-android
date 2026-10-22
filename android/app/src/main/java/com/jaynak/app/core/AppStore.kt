@@ -220,12 +220,13 @@ class AppStore {
         }
     }
 
-    suspend fun resendOTP() {
+    suspend fun resendOTP(sms: Boolean? = null) {
         val phone = challenge?.phone ?: return
+        val useSms = sms ?: (challenge?.viaSms ?: false)
         authError = null
         try {
-            challenge = OTPService.send(phone)
-            toast = Toast(text = "أُرسل رمز جديد على واتساب")
+            challenge = OTPService.send(phone, useSms)
+            toast = Toast(text = if (useSms) "أُرسل رمز جديد برسالة نصية" else "أُرسل رمز جديد على واتساب")
             Feedback.impact(ImpactStyle.light)
         } catch (e: Exception) {
             authError = e.message ?: "تعذّر إعادة الإرسال"

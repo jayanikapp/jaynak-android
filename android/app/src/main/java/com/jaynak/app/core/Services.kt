@@ -68,6 +68,9 @@ object OTPService {
         val resendAfter: Int = AppConfig.otpResendSeconds,
         val attempts: Int = 0,
         val channel: String = "WhatsApp",
+        /** يُرجعه الخادم: هل الرسائل النصية مفعّلة كقناة ثانية؟ */
+        val smsAvailable: Boolean = false,
+        val viaSms: Boolean = false,
 
         /** يظهر فقط عندما يكون الخادم في وضع التطوير. */
         val devCode: String? = null,
@@ -94,7 +97,7 @@ object OTPService {
         class Unreachable(m: String) : Failure(m)
     }
 
-    suspend fun send(phone: String): Challenge {
+    suspend fun send(phone: String, sms: Boolean = false): Challenge {
         if (AppConfig.firebaseEnabled) {
             val id = FirebasePhone.send(phone)
             return Challenge(phone = phone, sentAt = nowMs(), expiresIn = 120.0, channel = "SMS", localCode = null, verificationId = id)
@@ -106,12 +109,17 @@ object OTPService {
             throw Failure.Unreachable("لم يُضبط عنوان الخادم")
         }
 
-        val json = post("auth/request-otp", base, JSONObject().put("phone", phone))
+        val body = JSONObject().put("phone", phone)
+        if (sms) body.put("channel", "sms")
+        val json = post("auth/request-otp", base, body)
         return Challenge(
             phone = phone,
             sentAt = nowMs(),
             expiresIn = json.optDouble("expires_in", 300.0),
             resendAfter = json.optInt("resend_after", AppConfig.otpResendSeconds),
+            channel = if (sms) "SMS" else "WhatsApp",
+            smsAvailable = json.optBoolean("sms_available", false),
+            viaSms = sms,
             devCode = json.str("dev_code"),
             localCode = null,
         )

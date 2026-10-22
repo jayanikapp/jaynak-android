@@ -580,6 +580,7 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
                 Text("أدخل الرمز", style = MBType.title, color = MB.ink)
                 Text(
                     if (AppConfig.apiBaseURL == null) "${AppConfig.otpLength} أرقام — وضع تجربة محلي"
+                    else if (store.challenge?.viaSms == true) "أرسلنا ${AppConfig.otpLength} أرقام برسالة نصية"
                     else "أرسلنا ${AppConfig.otpLength} أرقام على واتساب",
                     style = MBType.caption, color = MB.ink2)
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -673,6 +674,22 @@ fun OTPView(role: UserRole, mode: AuthMode = AuthMode.signUp, onBack: (() -> Uni
                 ) {
                     SFIcon("arrow.clockwise", size = 14.dp, tint = tint)
                     Text("إعادة إرسال الرمز", style = MBType.callout, color = tint)
+                }
+                store.challenge?.takeIf { it.smsAvailable && !it.viaSms }?.let {
+                    Row(
+                        Modifier.pressable {
+                            scope.launch {
+                                store.resendOTP(sms = true)
+                                code = ""
+                                remaining = store.challenge?.resendAfter ?: AppConfig.otpResendSeconds
+                            }
+                        }.glassChip().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        SFIcon("message.fill", size = 14.dp, tint = tint)
+                        Text("إرسال الرمز برسالة نصية", style = MBType.callout, color = tint)
+                    }
                 }
             }
 
