@@ -13,8 +13,8 @@ android {
         applicationId = "com.jaynak.app"
         minSdk = 24                 // أندرويد ٧ وما بعده — يغطّي ما يحمله المندوبون
         targetSdk = 36
-        versionCode = 9
-        versionName = "2.2"
+        versionCode = (System.getenv("JAYNAK_VERSION_CODE") ?: "9").toInt()
+        versionName = System.getenv("JAYNAK_VERSION_NAME") ?: "2.2"
 buildConfigField("boolean", "DEMO_ACCESS", "false")
     }
 

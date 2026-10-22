@@ -11,6 +11,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
+      - name: Check signing secrets
+        env:
+          KS_B64: ${{ secrets.JAYNAK_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.JAYNAK_STOREPASS }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ]; then
+            echo "::error::Missing secrets JAYNAK_KEYSTORE_B64 / JAYNAK_STOREPASS (GitHub > Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
       - name: Decode keystore
         env:
           KS_B64: ${{ secrets.JAYNAK_KEYSTORE_B64 }}
@@ -20,8 +29,19 @@ jobs:
           JAYNAK_KEYSTORE: ${{ runner.temp }}/jaynak.keystore
           JAYNAK_STOREPASS: ${{ secrets.JAYNAK_STOREPASS }}
           JAYNAK_KEYPASS: ${{ secrets.JAYNAK_STOREPASS }}
-        run: chmod +x gradlew && ./gradlew bundleRelease --no-daemon
+          JAYNAK_VERSION_CODE: ${{ github.run_number }}
+          JAYNAK_VERSION_NAME: 2.3
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew bundleRelease --no-daemon 2>&1 | tee build.log || {
+            grep -E '^e: |FAILED|What went wrong' -A2 build.log | head -40 | while read -r l; do echo "::error::${l}"; done
+            exit 1
+          }
+      - name: Show signing certificate (SHA-1)
+        run: keytool -list -v -keystore "$RUNNER_TEMP/jaynak.keystore" -storepass "${{ secrets.JAYNAK_STOREPASS }}" 2>&1 | grep -E 'SHA1|Alias' || true
       - uses: actions/upload-artifact@v4
         with:
           name: jaynak-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 14
