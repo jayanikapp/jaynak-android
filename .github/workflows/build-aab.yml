@@ -1,6 +1,8 @@
 name: Build AAB (Google Play)
 on:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,7 +31,7 @@ jobs:
           JAYNAK_KEYSTORE: ${{ runner.temp }}/jaynak.keystore
           JAYNAK_STOREPASS: ${{ secrets.JAYNAK_STOREPASS }}
           JAYNAK_KEYPASS: ${{ secrets.JAYNAK_STOREPASS }}
-          JAYNAK_VERSION_CODE: ${{ github.run_number }}
+          JAYNAK_VERSION_CODE: ${{ 100 + github.run_number }}
           JAYNAK_VERSION_NAME: 2.3
         run: |
           chmod +x gradlew
@@ -45,3 +47,12 @@ jobs:
           name: jaynak-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 14
+      - name: Publish AAB as release (stable download link)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-aab -y --cleanup-tag || true
+          gh release create latest-aab --target ${{ github.sha }} app/build/outputs/bundle/release/*.aab --prerelease \
+            --title "Jaynak AAB (Google Play) - build ${{ github.run_number }}" \
+            --notes "ملف الإصدار الموقّع لرفعه إلى Google Play."
